@@ -155,9 +155,14 @@ public abstract class TKTiles {
   }
 
   // ---- listing card: a tag band, the name, a large price, details, buttons along the bottom ----
+  // (p.SetExtra("w:h") on the row sizes it)
   public static func Card(v: ref<TKView>, i: Int32, r: ref<TKRow>) -> Void {
     let w = TKScale.F("card.w", 530.0);
     let h = TKScale.F("card.h", 400.0);
+    if StrContains(r.extra, ":") {
+      w = StringToFloat(StrBeforeFirst(r.extra, ":"), w);
+      h = StringToFloat(StrAfterFirst(r.extra, ":"), h);
+    }
     let card = v.GridCell(TKKind.Card(), w, h);
     if !r.on {
       card.SetOpacity(0.7);

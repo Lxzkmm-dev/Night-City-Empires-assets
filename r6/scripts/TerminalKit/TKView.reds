@@ -433,6 +433,13 @@ public class TKView extends IScriptable {
       this.OpenDrop(StringToInt(StrAfterFirst(name, "dd_"), -1), e);
       return true;
     }
+    if StrBeginsWith(name, "ch_") {
+      let row = this.m_data.Row(StringToInt(StrAfterFirst(name, "ch_"), -1));
+      if StrLen(row.action) > 0 {
+        this.Act(row.action, row.arg);
+      }
+      return true;
+    }
     if StrBeginsWith(name, "ck_") {
       let row = this.m_data.Row(StringToInt(StrAfterFirst(name, "ck_"), -1));
       this.Act(row.action, TKView.Prefix(row.arg) + (row.on ? "0" : "1"));
@@ -753,6 +760,7 @@ public class TKView extends IScriptable {
       case 33: TKControls.Pager(this, i, r); break;
       case 34: TKControls.Live(this, i, r); break;
       case 35: TKControls.Message(this, r); break;
+      case 36: TKControls.Choice(this, i, r); break;
       default: break;
     }
   }

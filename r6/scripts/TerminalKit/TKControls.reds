@@ -151,6 +151,39 @@ public abstract class TKControls {
     v.Grew(Cast<Float>(font) * 1.4 + h + 20.0);
   }
 
+  // ---- a selectable list entry: label small, value under it, the chosen one lit ----
+  public static func Choice(v: ref<TKView>, i: Int32, r: ref<TKRow>) -> Void {
+    let w = v.RowWidth();
+    let small = TKScale.I("type.xs", 24) - 2;
+    let font = TKScale.I("row.title", 32) - 2;
+    let h = TKScale.F("choice.h", 78.0);
+    let row: ref<inkCanvas> = new inkCanvas();
+    row.SetSize(Vector2(w, h));
+    row.SetMargin(inkMargin(0.0, 6.0, 0.0, 0.0));
+    row.SetHAlign(inkEHorizontalAlign.Left);
+    row.Reparent(v.Content());
+    v.Grew(h + 6.0);
+    let back = TKInk.Rect(row, 0.0, 0.0, w, h);
+    back.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+    back.SetOpacity(r.on ? 0.75 : 0.4);
+    let tone = StrLen(r.color) > 0 ? r.color : "blue";
+    if r.on {
+      v.TonedFrame(row, w, h, 3.0, tone);
+    }
+    let bar = TKInk.Rect(row, 0.0, 0.0, 6.0, h);
+    v.Paint(bar, "value");
+    v.Tone(bar, tone);
+    let label = v.Text(row, r.value, small, n"Semi-Bold", "text", 0.0);
+    label.SetMargin(inkMargin(24.0, 8.0, 0.0, 0.0));
+    let red: Bool;
+    let green: Bool;
+    let value = v.Text(row, TKTheme.Unmark(r.text, red, green), font, n"Semi-Bold", "value", 0.0);
+    value.SetMargin(inkMargin(24.0, 8.0 + Cast<Float>(small) * 1.3, 0.0, 0.0));
+    v.Mark(value, red, green);
+    v.Hoverable(label, r.tip);
+    v.Clickable(row, "ch_" + IntToString(i));
+  }
+
   // ---- a message: a bubble with who and when over the text; V's own on the right ----
   public static func Message(v: ref<TKView>, r: ref<TKRow>) -> Void {
     let mine = r.on;

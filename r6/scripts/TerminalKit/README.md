@@ -36,7 +36,7 @@ A page is a title, a subtitle, a status message and rows (`TKPage.reds`). Your `
 - **Text and layout**: `Heading`, `Text`, `Pair`, `Note`, `Gap`, `Columns` (two columns of pairs), `Column` / `EndColumns` (side by side), `Section` (collapsible), `Links` (a tab row), `Dossier` (a header with a stamp), `Entry` (a feed entry), `Message` (a chat bubble; yours on the right).
 - **Values**: `Meter`, `Track` (a meter with named marks), `Levels` (an item with a level track), `Stat` and `Ticker` tiles (a sparkline), `Tile` (opens something), `Card` (a listing with buttons), `Ledger` (financial table lines: head, group, line, total, net), `Board` (a departures board).
 - **Buttons**: `Button`, `Item` (text left, a button right), `Buttons` (several).
-- **Controls**: `Input` (a text box), `Search` (a box and its button), `Slider`, `Dropdown`, `Check`, `SortHead` and `Pager`; `TKSheet` builds a sortable, paged table for you.
+- **Controls**: `Input` (a text box), `Search` (a box and its button), `Slider`, `Dropdown`, `Check`, `Choice` (a selectable list entry, for a list beside its detail), `SortHead` and `Pager`; `TKSheet` builds a sortable, paged table for you.
 - **Live**: `Countdown` and `Progress` update every second from game time without redrawing, and can run an action when they finish.
 - **Custom**: `Custom(tag, ...)` is drawn by your provider's `Custom()`, which returns a `TKCustom` the view stops when the page goes (the map is one).
 

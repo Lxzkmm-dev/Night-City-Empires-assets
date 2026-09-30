@@ -47,6 +47,7 @@ public abstract class TKKind {
   public static func Pager() -> Int32 = 33
   public static func Live() -> Int32 = 34
   public static func Message() -> Int32 = 35
+  public static func Choice() -> Int32 = 36
 }
 
 public class TKRow extends IScriptable {
@@ -351,6 +352,12 @@ public class TKPage extends IScriptable {
   // A progress bar from `start` to `end` (game seconds) with its percentage, live
   public func Progress(text: String, value: String, start: Float, end: Float, action: String, arg: String) -> Void {
     this.Push(TKKind.Live(), text, value, "", FloatToString(start) + "|" + FloatToString(end) + "|1", action, arg, 0.0, true);
+  }
+  // One entry of a selectable list (a master list beside its detail): a small
+  // label over the value, a bar in `color`, the chosen one filled and framed.
+  // Clicking it calls Act(action, arg).
+  public func Choice(label: String, value: String, color: String, chosen: Bool, action: String, arg: String) -> Void {
+    this.Push(TKKind.Choice(), value, label, color, "", action, arg, 0.0, chosen);
   }
   // A message in a thread: `who` and `time` over the text, V's own (`mine`) on the right
   public func Message(who: String, time: String, text: String, mine: Bool, color: String) -> Void {
