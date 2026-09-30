@@ -670,6 +670,12 @@ public class TKView extends IScriptable {
     this.m_data.content = this.m_provider;
     this.m_data.page = page;
     this.m_data.Request(page, arg);
+    // a page whose row takes the wheel (a map) doesn't scroll, and its row clips
+    // itself: the page's own mask comes off, since a mask inside a mask drew
+    // the map black in places and repeated parts of it
+    if IsDefined(this.m_scroll) {
+      this.m_scroll.SetUseInternalMask(!this.m_data.wheelReserved);
+    }
     this.SetTheme(this.m_data.theme);
     this.m_message.SetText(TKScale.T(message));
     // the sidebar highlights the section the page belongs to

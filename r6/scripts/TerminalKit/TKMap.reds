@@ -77,6 +77,20 @@ public class TKMapLayer extends IScriptable {
   public let path: String;            // atlas path, %C column and %R row
   public let part: CName;
   public let exists: String;          // "" = every tile, else "0110..." row by row
+  public let head: String;            // the path split around %C and %R (AddLayer)
+  public let middle: String;
+  public let tail: String;
+
+  // "...\t1\%C_%R.inkatlas" -> head "...\t1\", middle "_", tail ".inkatlas"
+  public func Split() -> Void {
+    this.head = StrBeforeFirst(this.path, "%C");
+    let rest = StrAfterFirst(this.path, "%C");
+    this.middle = StrBeforeFirst(rest, "%R");
+    this.tail = StrAfterFirst(rest, "%R");
+  }
+
+  // the tile at column c, row r: the path put together piece by piece
+  public func Tile(c: Int32, r: Int32) -> String = this.head + IntToString(c) + this.middle + IntToString(r) + this.tail
 }
 
 public class TKMapToggle extends IScriptable {
@@ -149,6 +163,7 @@ public class TKMapSpec extends IScriptable {
   public func AddLayer(minZoom: Float, grid: Int32, path: String, part: CName, exists: String) -> ref<TKMapLayer> {
     let l = new TKMapLayer();
     l.minZoom = minZoom; l.grid = grid; l.path = path; l.part = part; l.exists = exists;
+    l.Split();
     ArrayPush(this.layers, l);
     return l;
   }
@@ -467,9 +482,8 @@ public class TKMap extends TKCustom {
       while c <= c1 {
         let k = r * n + c;
         if Equals(StrMid(this.m_have[i], k, 1), "0") && (StrLen(l.exists) == 0 || Equals(StrMid(l.exists, k, 1), "1")) {
-          let path = StrReplace(StrReplace(l.path, "%C", IntToString(c)), "%R", IntToString(r));
           // a hair of overlap: no seams
-          this.Picture(this.m_layers[i], path, l.part, Cast<Float>(c) * ts, Cast<Float>(r) * ts, ts + 1.0);
+          this.Picture(this.m_layers[i], l.Tile(c, r), l.part, Cast<Float>(c) * ts, Cast<Float>(r) * ts, ts + 1.0);
           this.m_have[i] = StrLeft(this.m_have[i], k) + "1" + StrRight(this.m_have[i], n * n - k - 1);
         }
         c += 1;
