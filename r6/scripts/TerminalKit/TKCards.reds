@@ -59,6 +59,80 @@ public abstract class TKCards {
     v.Tone(t, color);
   }
 
+  // No photo on file: an emblem faint behind, a bust silhouette with a thin rim
+  // in the card's colour (longer hair for `female`), a "NO IMAGE" strip along
+  // the bottom. Drawn in 3 px slices so it works on any size.
+  public static func Portrait(v: ref<TKView>, box: ref<inkCanvas>, w: Float, h: Float, female: Bool, atlas: String, part: String, color: String) -> Void {
+    if StrLen(atlas) > 0 && StrLen(part) > 0 {
+      let size = MinF(w, h) * 0.86;
+      let img: ref<inkImage> = new inkImage();
+      img.SetAtlasResource(ResRef.FromString(atlas));
+      img.SetTexturePart(StringToName(part));
+      img.SetAnchor(inkEAnchor.Centered);
+      img.SetAnchorPoint(Vector2(0.5, 0.5));
+      img.SetSize(Vector2(size, size));
+      img.SetOpacity(0.22);
+      img.Reparent(box);
+      v.Paint(img, "value");
+      v.Tone(img, color);
+    }
+    let cx = w / 2.0;
+    let headY = h * 0.36;
+    let rx = w * 0.19;
+    let ry = h * 0.2;
+    let neck = h * 0.58;
+    let shoulders = h * 0.66;
+    let step = 3.0;
+    // the rim first, one step wider, then the fill over it
+    let pass = 0;
+    while pass < 2 {
+      let grow = pass == 0 ? 3.0 : 0.0;
+      let y = headY - ry - grow;
+      while y < h {
+        let half = 0.0;
+        let dy = (y - headY) / (ry + grow);
+        if AbsF(dy) <= 1.0 {
+          half = (rx + grow) * SqrtF(1.0 - dy * dy);
+        }
+        // hair: wider around the head and down to the shoulders
+        if female && y > headY - ry * 0.6 && y < shoulders + h * 0.04 {
+          let hair = (rx + grow) * (y < headY ? 1.12 : 1.18 - 0.25 * (y - headY) / (shoulders - headY));
+          half = MaxF(half, hair);
+        }
+        if y >= headY + ry * 0.8 && y < shoulders {
+          half = MaxF(half, w * 0.09 + grow);   // the neck
+        }
+        if y >= shoulders - 6.0 {
+          let t = ClampF((y - shoulders + 6.0) / (h - shoulders), 0.0, 1.0);
+          let span = female ? 0.36 : 0.42;
+          half = MaxF(half, (w * (0.2 + (span - 0.2) * SqrtF(t))) + grow);
+        }
+        if half > 0.5 {
+          let slice = TKInk.Rect(box, cx - half, y, half * 2.0, step + 0.5);
+          if pass == 0 {
+            v.Paint(slice, "value");
+            v.Tone(slice, color);
+            slice.SetOpacity(0.55);
+          } else {
+            slice.SetTintColor(new HDRColor(0.07, 0.08, 0.1, 1.0));
+          }
+        }
+        y += step;
+      }
+      pass += 1;
+    }
+    // the strip along the bottom
+    let band = TKInk.Rect(box, 0.0, h - 30.0, w, 30.0);
+    band.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+    band.SetOpacity(0.8);
+    let t = v.Text(box, "NO IMAGE", 20, n"Semi-Bold", "text", 0.0);
+    t.SetAnchor(inkEAnchor.BottomCenter);
+    t.SetAnchorPoint(Vector2(0.5, 1.0));
+    t.SetHorizontalAlignment(textHorizontalAlignment.Center);
+    t.SetMargin(inkMargin(0.0, 0.0, 0.0, 4.0));
+    t.SetOpacity(0.8);
+  }
+
   // the first letter of the first two words ("JACKIE WELLES" gives "JW")
   private static func Initials(name: String) -> String {
     let clean = StrReplaceAll(name, "\"", "");
@@ -126,23 +200,28 @@ public abstract class TKCards {
     let shot = TKInk.Rect(card, px, py, pw, ph);
     shot.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
     shot.SetOpacity(0.8);
-    let s = 1;
-    while s < 6 {
-      let scan = TKInk.Rect(card, px + 6.0, py + Cast<Float>(s) * ph / 6.0, pw - 12.0, 2.0);
-      v.Paint(scan, "rule");
-      scan.SetOpacity(0.35);
-      s += 1;
-    }
-    TKCards.Brackets(v, card, px, py, pw, ph, 22.0, 3.0, color);
     let face: ref<inkCanvas> = new inkCanvas();
     face.SetSize(Vector2(pw, ph));
     face.SetMargin(inkMargin(px, py, 0.0, 0.0));
     face.Reparent(card);
-    let ini = v.Text(face, TKCards.Initials(name), 64, n"Semi-Bold", "value", 0.0);
-    ini.SetAnchor(inkEAnchor.Centered);
-    ini.SetAnchorPoint(Vector2(0.5, 0.5));
-    ini.SetHorizontalAlignment(textHorizontalAlignment.Center);
-    v.Tone(ini, color);
+    let kind = TKStr.Part(r.image, "|", 0);
+    if Equals(kind, "m") || Equals(kind, "f") {
+      TKCards.Portrait(v, face, pw, ph, Equals(kind, "f"), TKStr.Part(r.image, "|", 1), TKStr.Part(r.image, "|", 2), color);
+    } else {
+      let ini = v.Text(face, TKCards.Initials(name), 64, n"Semi-Bold", "value", 0.0);
+      ini.SetAnchor(inkEAnchor.Centered);
+      ini.SetAnchorPoint(Vector2(0.5, 0.5));
+      ini.SetHorizontalAlignment(textHorizontalAlignment.Center);
+      v.Tone(ini, color);
+    }
+    let s = 1;
+    while s < 12 {
+      let scan = TKInk.Rect(card, px + 4.0, py + Cast<Float>(s) * ph / 12.0, pw - 8.0, 2.0);
+      scan.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+      scan.SetOpacity(0.35);
+      s += 1;
+    }
+    TKCards.Brackets(v, card, px, py, pw, ph, 22.0, 3.0, color);
     // the name and role beside it
     let nx = px + pw + 20.0;
     let nw = w - nx - 20.0;

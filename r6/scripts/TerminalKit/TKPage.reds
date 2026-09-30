@@ -67,6 +67,7 @@ public class TKRow extends IScriptable {
   public let on: Bool;
   public let extra: String;      // what a row needs beyond the rest (Levels: "level:max"; a custom row's payload)
   public let tip: String;        // shown when the cursor rests on the row's title
+  public let image: String;      // a File's portrait: "kind|atlas|part" (SetPortrait)
   // action rows only: the buttons, typed
   public let labels: array<String>;
   public let actions: array<String>;
@@ -420,6 +421,14 @@ public class TKPage extends IScriptable {
   public func SetExtra(extra: String) -> Void {
     if ArraySize(this.rows) > 0 {
       this.rows[ArraySize(this.rows) - 1].extra = extra;
+    }
+  }
+  // The portrait on the File just added: `kind` "m" or "f" draws a bust
+  // silhouette ("" keeps the initials), with an emblem from `atlas` / `part`
+  // behind it when given ("" for none)
+  public func SetPortrait(kind: String, atlas: String, part: String) -> Void {
+    if ArraySize(this.rows) > 0 {
+      this.rows[ArraySize(this.rows) - 1].image = kind + "|" + atlas + "|" + part;
     }
   }
 }
