@@ -17,6 +17,7 @@ public class TKButton extends SimpleButton {
     let label = TKScale.T(text);
     b.SetText(label);
     b.SetFontSize(TKButton.FitSize(label, width, size));
+    TKInk.OwnFont(b.m_label);
     b.ToggleSounds(true);
     b.Reparent(parent);
     b.SetName(StringToName(name));

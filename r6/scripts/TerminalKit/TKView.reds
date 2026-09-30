@@ -157,6 +157,16 @@ public class TKView extends IScriptable {
     }
   }
 
+  protected cb func OnDeniedPress(e: ref<inkPointerEvent>) -> Bool {
+    if e.IsAction(n"click") {
+      let player = GetPlayer(GetGameInstance());
+      if IsDefined(player) {
+        GameObject.PlaySound(player, this.Style().denySound);
+      }
+    }
+    return false;
+  }
+
   private func ClickSound() -> Void {
     let sound = this.Style().selectSound;
     if NotEquals(sound, n"") {
@@ -979,6 +989,10 @@ public class TKView extends IScriptable {
     }
     let b = TKButton.Make(parent, shown, "act_" + IntToString(i) + (n > 0 ? "_" + IntToString(n) : ""), width, height, size);
     b.SetDisabled(off || !on);
+    // a disabled button sends no click: its own widget tells us it was pressed
+    if (off || !on) && NotEquals(this.Style().denySound, n"") {
+      b.GetRootWidget().RegisterToCallback(n"OnPress", this, n"OnDeniedPress");
+    }
     b.RegisterToCallback(n"OnBtnClick", this, n"OnActClick");
     TKTheme.Paint(b.GetLabel(), this.m_theme, "value");
     ArrayPush(this.m_buttons, b);

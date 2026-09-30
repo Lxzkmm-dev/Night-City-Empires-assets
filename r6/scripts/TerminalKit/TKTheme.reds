@@ -220,6 +220,9 @@ public class TKStyle extends IScriptable {
   public let openSound: CName;        // on the player when the frame opens (n"" = the kit's)
   public let closeSound: CName;
   public let selectSound: CName;      // a tab or a button pressed (n"" = none)
+  public let denySound: CName;        // a disabled button pressed (n"" = none)
+  public let fontFamily: String;      // an .inkfontfamily path for every text and button in the frame ("" = the game's UI font)
+  public let fontStyle: CName;        // one font style for everything, for a family without Regular / Medium / Semi-Bold (n"" = the kit's weights)
 }
 
 // Where layout numbers and text replacements come from (a tuner, a file);
@@ -236,6 +239,8 @@ public class TKScaleDefaults extends TKScaleSource {}
 public class TKScaleSystem extends ScriptableSystem {
   public let source: ref<TKScaleSource>;   // the shared slot (TKScale.Use)
   public let active: ref<TKScaleSource>;   // the open frame's own source, while it is open
+  public let font: String;                 // the open frame's own font family ("" = the game's)
+  public let fontStyle: CName;
 
   public static func Get() -> ref<TKScaleSystem> = GameInstance.GetScriptableSystemsContainer(GetGameInstance()).Get(n"TerminalKit.TKScaleSystem") as TKScaleSystem
 }
@@ -300,10 +305,33 @@ public abstract class TKScale {
 
 public abstract class TKInk {
   public static func Font(t: ref<inkText>, size: Int32, weight: CName) -> Void {
-    t.SetFontFamily("base\\gameplay\\gui\\fonts\\raj\\raj.inkfontfamily");
-    t.SetFontStyle(weight);
+    let sys = TKScaleSystem.Get();
+    let own = IsDefined(sys) && StrLen(sys.font) > 0;
+    t.SetFontFamily(own ? sys.font : "base\\gameplay\\gui\\fonts\\raj\\raj.inkfontfamily");
+    t.SetFontStyle(own && NotEquals(sys.fontStyle, n"") ? sys.fontStyle : weight);
     t.SetFontSize(size);
     t.SetLetterCase(textLetterCase.UpperCase);
+  }
+
+  // The open frame's own font (TKPopup sets it from its style while it is open;
+  // "" hands the game's UI font back)
+  public static func UseFont(family: String, style: CName) -> Void {
+    let sys = TKScaleSystem.Get();
+    if IsDefined(sys) {
+      sys.font = family;
+      sys.fontStyle = style;
+    }
+  }
+
+  // a text the kit didn't build (a button's label): the frame's own font, when it has one
+  public static func OwnFont(t: ref<inkText>) -> Void {
+    let sys = TKScaleSystem.Get();
+    if IsDefined(sys) && StrLen(sys.font) > 0 && IsDefined(t) {
+      t.SetFontFamily(sys.font);
+      if NotEquals(sys.fontStyle, n"") {
+        t.SetFontStyle(sys.fontStyle);
+      }
+    }
   }
 
   public static func Strip(parent: ref<inkCompoundWidget>, above: Float) -> ref<inkHorizontalPanel> {

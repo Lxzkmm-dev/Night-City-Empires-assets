@@ -181,6 +181,8 @@ public class TKPopup extends InGamePopup {
   protected cb func OnCreate() -> Void {
     super.OnCreate();
     TKScale.Activate(this.ScaleSource());
+    let look = this.Style();
+    TKInk.UseFont(IsDefined(look) ? look.fontFamily : "", IsDefined(look) ? look.fontStyle : n"");
     this.Setup();
     this.RegisterToGlobalInputCallback(n"OnPostOnRelative", this, n"OnFrameRelative");
     this.RegisterToGlobalInputCallback(n"OnPostOnPress", this, n"OnFramePress");
@@ -604,6 +606,7 @@ public class TKPopup extends InGamePopup {
     }
     this.Closing();
     TKScale.Activate(null);
+    TKInk.UseFont("", n"");
     super.OnHidden();
     this.Closed();
   }
