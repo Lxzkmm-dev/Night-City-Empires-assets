@@ -1135,7 +1135,8 @@ public class TKView extends IScriptable {
     act.content = this.m_provider;
     act.page = this.m_page;
     let row = this.m_data.Row(sl.row);
-    act.Act(row.action, row.arg + ":" + IntToString(sl.value));
+    // "arg:value", or just the value when the row has no arg (as every other control)
+    act.Act(row.action, TKView.Prefix(row.arg) + IntToString(sl.value));
     return act;
   }
 
