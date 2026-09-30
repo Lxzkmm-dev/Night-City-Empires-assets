@@ -76,10 +76,12 @@ public abstract class TKCards {
       v.Paint(img, "value");
       v.Tone(img, color);
     }
+    // one plain bust for everyone (hair shapes read as a hood); a woman's is a
+    // touch slimmer: a smaller head, narrower shoulders
     let cx = w / 2.0;
     let headY = h * 0.36;
-    let rx = w * 0.19;
-    let ry = h * 0.2;
+    let rx = w * (female ? 0.175 : 0.19);
+    let ry = h * (female ? 0.19 : 0.2);
     let neck = h * 0.58;
     let shoulders = h * 0.66;
     let step = 3.0;
@@ -94,17 +96,12 @@ public abstract class TKCards {
         if AbsF(dy) <= 1.0 {
           half = (rx + grow) * SqrtF(1.0 - dy * dy);
         }
-        // hair: wider around the head and down to the shoulders
-        if female && y > headY - ry * 0.6 && y < shoulders + h * 0.04 {
-          let hair = (rx + grow) * (y < headY ? 1.12 : 1.18 - 0.25 * (y - headY) / (shoulders - headY));
-          half = MaxF(half, hair);
-        }
         if y >= headY + ry * 0.8 && y < shoulders {
-          half = MaxF(half, w * 0.09 + grow);   // the neck
+          half = MaxF(half, w * (female ? 0.08 : 0.09) + grow);   // the neck
         }
         if y >= shoulders - 6.0 {
           let t = ClampF((y - shoulders + 6.0) / (h - shoulders), 0.0, 1.0);
-          let span = female ? 0.36 : 0.42;
+          let span = female ? 0.37 : 0.42;
           half = MaxF(half, (w * (0.2 + (span - 0.2) * SqrtF(t))) + grow);
         }
         if half > 0.5 {
@@ -112,7 +109,7 @@ public abstract class TKCards {
           if pass == 0 {
             v.Paint(slice, "value");
             v.Tone(slice, color);
-            slice.SetOpacity(0.55);
+            slice.SetOpacity(0.35);
           } else {
             slice.SetTintColor(new HDRColor(0.07, 0.08, 0.1, 1.0));
           }
@@ -345,12 +342,19 @@ public abstract class TKCards {
     let parts = TKStr.Split(r.value, "\n");
     if StrLen(parts[0]) > 0 {
       let chips = TKInk.Strip(body, 10.0);
+      let used = 0.0;
       for chip in TKStr.Split(parts[0], "|") {
         if StrLen(chip) > 0 {
           let cr: Bool;
           let cg: Bool;
           let label = TKTheme.Unmark(chip, cr, cg);
           let cw = Cast<Float>(StrLen(label)) * 0.6 * 22.0 + 24.0;
+          // a chip that won't fit starts a new line of chips
+          if used > 0.0 && used + cw > tw {
+            chips = TKInk.Strip(body, 8.0);
+            used = 0.0;
+          }
+          used += cw + 10.0;
           let box: ref<inkCanvas> = new inkCanvas();
           box.SetSize(Vector2(cw, 34.0));
           box.SetMargin(inkMargin(0.0, 0.0, 10.0, 0.0));
