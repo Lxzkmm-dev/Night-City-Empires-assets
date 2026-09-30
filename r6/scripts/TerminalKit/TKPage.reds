@@ -48,6 +48,8 @@ public abstract class TKKind {
   public static func Live() -> Int32 = 34
   public static func Message() -> Int32 = 35
   public static func Choice() -> Int32 = 36
+  public static func Gauge() -> Int32 = 37
+  public static func Stack() -> Int32 = 38
 }
 
 public class TKRow extends IScriptable {
@@ -246,6 +248,17 @@ public class TKPage extends IScriptable {
   // ("0.92,1.04,..." oldest first) with a faint mark at 1.00, and a note under it
   public func Ticker(name: String, value: String, change: String, series: String, note: String) -> Void {
     this.Push(TKKind.Ticker(), name + "|" + value + "|" + change + "|" + note, series, "", "", "", "", 0.0, true);
+  }
+  // A dial tile in a grid (like cards): the name, a half-circle of ticks lit up to
+  // `fraction` (red, amber, green from low to high; one colour when `color` is set)
+  // with a needle, the value under it (card marks) and a line along the bottom
+  public func Gauge(name: String, value: String, sub: String, fraction: Float, color: String) -> Void {
+    this.Push(TKKind.Gauge(), name + "|" + value + "|" + sub, "", color, "", "", "", fraction, true);
+  }
+  // A bar split into parts, a legend under it: names "A|B", shares "0.2|0.35"
+  // (0..1 of the whole bar, the rest left empty), colours "cyan|red"
+  public func Stack(label: String, value: String, names: String, shares: String, colors: String) -> Void {
+    this.Push(TKKind.Stack(), label, value, "", names, shares, colors, 0.0, true);
   }
   // A stat tile in a grid (like cards): the name, the value large, a line under
   // it (card marks: "!" red, "*" green) and a bar filled to `fraction` (below 0: none)

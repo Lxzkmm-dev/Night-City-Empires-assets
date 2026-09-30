@@ -347,7 +347,12 @@ public class TKView extends IScriptable {
     }
     if StrBeginsWith(label, "?") {
       let yes = StrAfterFirst(label, "?");
-      this.Dialog(yes + "?" + (StrLen(row.text) > 0 ? "\n" + row.text : ""), yes, row.actions[n], arg);
+      // what the row is about: its title (a card's name, a tile's name), marks off
+      let about = StrContains(row.text, "|") ? TKStr.Part(row.text, "|", row.kind == TKKind.Card() ? 1 : 0) : row.text;
+      let red: Bool;
+      let green: Bool;
+      about = TKTheme.Unmark(about, red, green);
+      this.Dialog(yes + "?" + (StrLen(about) > 0 ? "\n" + about : ""), yes, row.actions[n], arg);
       return true;
     }
     this.Act(row.actions[n], arg);
@@ -723,7 +728,7 @@ public class TKView extends IScriptable {
 
   private func Draw(i: Int32, r: ref<TKRow>) -> Void {
     let kind = r.kind;
-    if kind != TKKind.Card() && kind != TKKind.Ticker() && kind != TKKind.Stat() && kind != TKKind.Tile() {
+    if kind != TKKind.Card() && kind != TKKind.Ticker() && kind != TKKind.Stat() && kind != TKKind.Tile() && kind != TKKind.Gauge() {
       this.m_cards = null;   // the next card or tile starts a new line
     }
     switch kind {
@@ -761,6 +766,8 @@ public class TKView extends IScriptable {
       case 34: TKControls.Live(this, i, r); break;
       case 35: TKControls.Message(this, r); break;
       case 36: TKControls.Choice(this, i, r); break;
+      case 37: TKTiles.Gauge(this, r); break;
+      case 38: TKRows.Stack(this, r); break;
       default: break;
     }
   }

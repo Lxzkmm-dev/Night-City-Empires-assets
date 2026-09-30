@@ -34,7 +34,7 @@ public class MyContent extends TKContent {
 A page is a title, a subtitle, a status message and rows (`TKPage.reds`). Your `TKContent` fills it in `Request` and runs buttons in `Act` (set `p.GoTo`, `p.SetMessage`, `p.Rebuild()` or `p.skipRedraw`).
 
 - **Text and layout**: `Heading`, `Text`, `Pair`, `Note`, `Gap`, `Columns` (two columns of pairs), `Column` / `EndColumns` (side by side), `Section` (collapsible), `Links` (a tab row), `Dossier` (a header with a stamp), `Entry` (a feed entry), `Message` (a chat bubble; yours on the right).
-- **Values**: `Meter`, `Track` (a meter with named marks), `Levels` (an item with a level track), `Stat` and `Ticker` tiles (a sparkline), `Tile` (opens something), `Card` (a listing with buttons), `Ledger` (financial table lines: head, group, line, total, net), `Board` (a departures board).
+- **Values**: `Meter`, `Track` (a meter with named marks), `Levels` (an item with a level track), `Stat` and `Ticker` tiles (a sparkline), `Gauge` (a dial tile with a needle), `Stack` (a bar split into coloured parts, with a legend), `Tile` (opens something), `Card` (a listing with buttons), `Ledger` (financial table lines: head, group, line, total, net), `Board` (a departures board).
 - **Buttons**: `Button`, `Item` (text left, a button right), `Buttons` (several).
 - **Controls**: `Input` (a text box), `Search` (a box and its button), `Slider`, `Dropdown`, `Check`, `Choice` (a selectable list entry, for a list beside its detail), `SortHead` and `Pager`; `TKSheet` builds a sortable, paged table for you.
 - **Live**: `Countdown` and `Progress` update every second from game time without redrawing, and can run an action when they finish.

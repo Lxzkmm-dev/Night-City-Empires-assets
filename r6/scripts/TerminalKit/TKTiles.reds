@@ -37,6 +37,65 @@ public abstract class TKTiles {
     }
   }
 
+  // ---- dial tile: a half-circle of ticks lit up to `fraction`, a needle, the
+  // value under the hub, a line along the bottom. The lit ticks run red to amber
+  // to green (low to high), unless the row gives a colour ----
+  public static func Gauge(v: ref<TKView>, r: ref<TKRow>) -> Void {
+    let w = TKScale.F("gauge.w", 355.0);
+    let h = TKScale.F("gauge.h", 270.0);
+    let tile = v.GridCell(TKKind.Gauge(), w, h);
+    v.Panel(tile, w, h, 0.45);
+    let parts = TKStr.Split(r.text, "|");
+    v.Paint(TKInk.Rect(tile, 0.0, 0.0, w, 4.0), "accent");
+    let name = v.Text(tile, parts[0], 22, n"Semi-Bold", "text", 0.0);
+    name.SetMargin(inkMargin(18.0, 14.0, 0.0, 0.0));
+    v.Hoverable(name, r.tip);
+    // the dial: ticks on an arc from the left (180 degrees) over the top to the right
+    let cx = w / 2.0;
+    let cy = 168.0;
+    let radius = 104.0;
+    let n = 19;
+    let f = ClampF(r.fraction, 0.0, 1.0);
+    let k = 0;
+    while k < n {
+      let t = Cast<Float>(k) / Cast<Float>(n - 1);
+      let angle = Deg2Rad(180.0 - 180.0 * t);
+      let lit = t <= f + 0.001;
+      let long = k % 3 == 0;
+      let len = long ? 20.0 : 13.0;
+      let a = Vector2(cx + CosF(angle) * radius, cy - SinF(angle) * radius);
+      let b = Vector2(cx + CosF(angle) * (radius - len), cy - SinF(angle) * (radius - len));
+      let color = StrLen(r.color) > 0 ? TKTheme.Gold() : (t < 0.34 ? TKTheme.Loss() : (t < 0.67 ? TKTheme.Amber() : TKTheme.Gain()));
+      TKInk.Seg(tile, a, b, long ? 5.0 : 4.0, lit ? color : new HDRColor(0.35, 0.37, 0.4, 1.0), lit ? 1.0 : 0.45);
+      k += 1;
+    }
+    // the needle and its hub
+    let na = Deg2Rad(180.0 - 180.0 * f);
+    let tip = Vector2(cx + CosF(na) * (radius - 26.0), cy - SinF(na) * (radius - 26.0));
+    TKInk.Seg(tile, Vector2(cx, cy), tip, 4.0, new HDRColor(0.92, 0.94, 0.96, 1.0), 1.0);
+    let hub = TKInk.Rect(tile, cx - 8.0, cy - 8.0, 16.0, 16.0);
+    hub.SetRenderTransformPivot(Vector2(0.5, 0.5));
+    hub.SetRotation(45.0);
+    hub.SetTintColor(new HDRColor(0.92, 0.94, 0.96, 1.0));
+    // the value, centred under the hub
+    let red: Bool;
+    let green: Bool;
+    let value = v.Text(tile, TKTheme.Unmark(ArraySize(parts) > 1 ? parts[1] : "", red, green), 34, n"Semi-Bold", "value", 0.0);
+    value.SetAnchor(inkEAnchor.TopCenter);
+    value.SetAnchorPoint(Vector2(0.5, 0.0));
+    value.SetHorizontalAlignment(textHorizontalAlignment.Center);
+    value.SetMargin(inkMargin(0.0, cy + 10.0, 0.0, 0.0));
+    v.Mark(value, red, green);
+    v.Tone(value, r.color);
+    if ArraySize(parts) > 2 && StrLen(parts[2]) > 0 {
+      let sub = v.Marked(tile, parts[2], 20, n"Medium", 0.0, w - 36.0);
+      sub.SetAnchor(inkEAnchor.TopCenter);
+      sub.SetAnchorPoint(Vector2(0.5, 0.0));
+      sub.SetHorizontalAlignment(textHorizontalAlignment.Center);
+      sub.SetMargin(inkMargin(0.0, h - 34.0, 0.0, 0.0));
+    }
+  }
+
   // ---- opener tile: a bar and the name in its colour, the value, a line, a button ----
   // (p.SetExtra("w:h") on the row sizes it; a colour "*colour" frames it: the one selected)
   public static func Tile(v: ref<TKView>, i: Int32, r: ref<TKRow>) -> Void {

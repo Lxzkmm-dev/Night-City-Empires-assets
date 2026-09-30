@@ -8,6 +8,49 @@
 module TerminalKit
 
 public abstract class TKRows {
+  // ---- a bar split into parts (colours from the row colour names), a legend under it ----
+  public static func Stack(v: ref<TKView>, r: ref<TKRow>) -> Void {
+    let c = v.Content();
+    let font = TKScale.I("meter.font", 30);
+    let top = TKInk.Strip(c, 10.0);
+    v.Hoverable(v.Text(top, r.text, font, n"Medium", "text", 0.0), r.tip);
+    v.Text(top, "   " + r.value, font, n"Semi-Bold", "value", 0.0);
+    let w = v.RowWidth();
+    let h = TKScale.F("stack.h", 26.0);
+    let bar: ref<inkCanvas> = new inkCanvas();
+    bar.SetSize(Vector2(w, h));
+    bar.SetMargin(inkMargin(0.0, 8.0, 0.0, 0.0));
+    bar.SetHAlign(inkEHorizontalAlign.Left);
+    bar.Reparent(c);
+    let bed = TKInk.Rect(bar, 0.0, 0.0, w, h);
+    v.Paint(bed, "rule");
+    bed.SetOpacity(0.4);
+    let names = TKStr.Split(r.label, "|");
+    let shares = TKStr.Split(r.action, "|");
+    let colors = TKStr.Split(r.arg, "|");
+    let legend = TKInk.Strip(c, 10.0);
+    let x = 0.0;
+    let k = 0;
+    while k < ArraySize(names) {
+      let share = ClampF(StringToFloat(k < ArraySize(shares) ? shares[k] : "0", 0.0), 0.0, 1.0);
+      let color = k < ArraySize(colors) ? colors[k] : "";
+      if share > 0.0 && x < w {
+        let part = TKInk.Rect(bar, x, 0.0, MaxF(3.0, MinF(w - x, w * share) - 2.0), h);
+        v.Paint(part, "value");
+        v.Tone(part, color);
+        x += w * share;
+      }
+      // the legend: a chip in its colour and its name
+      let chip = TKInk.Rect(legend, 0.0, 0.0, 16.0, 16.0);
+      chip.SetMargin(inkMargin(k > 0 ? 30.0 : 0.0, 8.0, 10.0, 0.0));
+      v.Paint(chip, "value");
+      v.Tone(chip, color);
+      v.Text(legend, names[k], TKScale.I("type.xs", 24), n"Medium", "text", 0.0);
+      k += 1;
+    }
+    v.Grew(Cast<Float>(font) * 1.4 + h + 18.0 + Cast<Float>(TKScale.I("type.xs", 24)) * 1.4 + 10.0);
+  }
+
   public static func Heading(v: ref<TKView>, r: ref<TKRow>) -> Void {
     let c = v.Content();
     let head = v.Text(c, r.text, TKScale.I("heading", 46), n"Medium", "accent", 0.0);
