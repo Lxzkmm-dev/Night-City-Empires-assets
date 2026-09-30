@@ -22,6 +22,7 @@ public class TKView extends IScriptable {
   private let m_message: wref<inkText>;
   private let m_width: Float;
   private let m_theme: String = "hud";
+  private let m_style: ref<TKStyle>;
   private let m_frame: ref<TKFrame>;
   private let m_provider: ref<TKContent>;
   private let m_chrome: array<wref<inkWidget>>;
@@ -131,6 +132,40 @@ public class TKView extends IScriptable {
   // a page changed its own state without a redraw (a map after a drag): the frame reopens on it
   public func SetArg(arg: String) -> Void { this.m_arg = arg; }
   public func Theme() -> String { return this.m_theme; }
+  // the frame's look (never null: the kit's normal look when the frame set none)
+  public func SetStyle(style: ref<TKStyle>) -> Void { this.m_style = style; }
+  public func Style() -> ref<TKStyle> {
+    if !IsDefined(this.m_style) {
+      this.m_style = new TKStyle();
+    }
+    return this.m_style;
+  }
+
+  // Cuts a bar at (x, y), w x h, into the style's cells: dark dividers drawn over
+  // it once, so the fill under them stays one rectangle (nothing when smooth)
+  public func Segments(parent: ref<inkCompoundWidget>, x: Float, y: Float, w: Float, h: Float) -> Void {
+    let n = this.Style().segmentedBars;
+    if n < 2 {
+      return;
+    }
+    let gap = MaxF(2.0, MinF(5.0, w / Cast<Float>(n) * 0.16));
+    let k = 1;
+    while k < n {
+      let cut = TKInk.Rect(parent, x + w * Cast<Float>(k) / Cast<Float>(n) - gap / 2.0, y, gap, h);
+      cut.SetTintColor(TKTheme.Ink());
+      k += 1;
+    }
+  }
+
+  private func ClickSound() -> Void {
+    let sound = this.Style().selectSound;
+    if NotEquals(sound, n"") {
+      let player = GetPlayer(GetGameInstance());
+      if IsDefined(player) {
+        GameObject.PlaySound(player, sound);
+      }
+    }
+  }
   public func Content() -> ref<inkVerticalPanel> { return this.m_content; }
   public func Page() -> ref<TKPage> { return this.m_data; }
   public func RowWidth() -> Float { return this.m_width - 40.0; }
@@ -312,6 +347,7 @@ public class TKView extends IScriptable {
   // "tab_<page>" or "tab_<page>~<arg>"
   protected cb func OnTabClick(widget: wref<inkWidget>) -> Bool {
     let target = StrAfterFirst(NameToString(widget.GetName()), "tab_");
+    this.ClickSound();
     if StrContains(target, "~") {
       this.Show(StrBeforeFirst(target, "~"), StrAfterFirst(target, "~"), "");
     } else {
@@ -337,6 +373,7 @@ public class TKView extends IScriptable {
       return true;
     }
     let arg = row.args[n];
+    this.ClickSound();
     if row.kind == TKKind.Search() {
       arg = this.FieldText(row.extra);   // a search button hands over what's typed
     }

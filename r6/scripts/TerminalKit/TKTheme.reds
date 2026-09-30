@@ -61,7 +61,48 @@ public abstract class TKTheme {
   // at most white: brighter-than-white (HDR) colours bloom, a soft halo on text
   public static func C(r: Float, g: Float, b: Float) -> HDRColor = new HDRColor(MinF(r, 1.0), MinF(g, 1.0), MinF(b, 1.0), 1.0)
 
-  public static func Ids() -> array<String> = ["hud", "kiroshi", "arasaka", "militech", "netwatch", "mono"]
+  // the built-in palettes, then the ones mods registered
+  public static func Ids() -> array<String> {
+    let ids = ["hud", "kiroshi", "arasaka", "militech", "netwatch", "mono"];
+    let sys = TKThemeSystem.Get();
+    if IsDefined(sys) {
+      for p in sys.palettes {
+        ArrayPush(ids, p.Id());
+      }
+    }
+    return ids;
+  }
+
+  // A mod's own palette, picked like any other with its Id() (TKPage.SetTheme).
+  // Registering an id again replaces it. Register when the player attaches:
+  // the list lives for the game session.
+  public static func Register(palette: ref<TKPalette>) -> Void {
+    let sys = TKThemeSystem.Get();
+    if !IsDefined(sys) || !IsDefined(palette) || StrLen(palette.Id()) == 0 {
+      return;
+    }
+    let i = 0;
+    while i < ArraySize(sys.palettes) {
+      if Equals(sys.palettes[i].Id(), palette.Id()) {
+        sys.palettes[i] = palette;
+        return;
+      }
+      i += 1;
+    }
+    ArrayPush(sys.palettes, palette);
+  }
+
+  private static func Registered(theme: String) -> ref<TKPalette> {
+    let sys = TKThemeSystem.Get();
+    if IsDefined(sys) {
+      for p in sys.palettes {
+        if Equals(p.Id(), theme) {
+          return p;
+        }
+      }
+    }
+    return null;
+  }
 
   public static func Color(theme: String, role: String) -> HDRColor {
     switch theme {
@@ -107,7 +148,9 @@ public abstract class TKTheme {
           default: return TKTheme.C(0.95, 0.95, 0.95);
         }
       default:
-        return TKTheme.C(0.37, 0.96, 1.19);
+        // a registered palette; an id nobody registered (its mod is gone) shows cyan
+        let mine = TKTheme.Registered(theme);
+        return IsDefined(mine) ? mine.Color(role) : TKTheme.C(0.37, 0.96, 1.19);
     }
   }
 
@@ -149,6 +192,34 @@ public abstract class TKTheme {
     green = StrBeginsWith(s, "+");
     return s;
   }
+}
+
+// A palette a mod supplies: subclass it, give it an id and its colours by role
+// ("title", "accent", "text", "value", "frame", "rule"; anything else is "value"),
+// and hand it to TKTheme.Register
+public abstract class TKPalette extends IScriptable {
+  public func Id() -> String = ""
+  public func Color(role: String) -> HDRColor = TKTheme.C(0.37, 0.96, 1.19)
+}
+
+public class TKThemeSystem extends ScriptableSystem {
+  public let palettes: array<ref<TKPalette>>;
+
+  public static func Get() -> ref<TKThemeSystem> = GameInstance.GetScriptableSystemsContainer(GetGameInstance()).Get(n"TerminalKit.TKThemeSystem") as TKThemeSystem
+}
+
+// A look a frame can ask for (TKPopup.Style()). Every field's zero value is the
+// kit's normal look, so set only what you want.
+public class TKStyle extends IScriptable {
+  public let frame: Int32;            // 0 corner brackets, 1 notched (corners cut), 2 armoured (a full double border, heavy corners)
+  public let rivets: Bool;            // a row of rivets along the top and bottom edges
+  public let hazard: Bool;            // hazard-stripe blocks in two corners
+  public let scanlines: Float;        // opacity of a static scanline overlay (0 = none)
+  public let headerPlates: Bool;      // headings on a dark plate with an edge bar
+  public let segmentedBars: Int32;    // meters and stat bars cut into this many cells (0 = smooth)
+  public let openSound: CName;        // on the player when the frame opens (n"" = the kit's)
+  public let closeSound: CName;
+  public let selectSound: CName;      // a tab or a button pressed (n"" = none)
 }
 
 // Where layout numbers and text replacements come from (a tuner, a file);

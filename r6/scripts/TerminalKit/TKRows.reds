@@ -53,6 +53,34 @@ public abstract class TKRows {
 
   public static func Heading(v: ref<TKView>, r: ref<TKRow>) -> Void {
     let c = v.Content();
+    // the plated look: the heading on a dark plate with an edge bar in its colour
+    if v.Style().headerPlates {
+      let size = TKScale.I("heading", 46) - 8;
+      let ph = Cast<Float>(size) * 1.4 + 14.0;
+      let pw = v.Width() - 40.0;
+      let plate: ref<inkCanvas> = new inkCanvas();
+      plate.SetSize(Vector2(pw, ph));
+      plate.SetMargin(inkMargin(0.0, 22.0, 0.0, 14.0));
+      plate.SetHAlign(inkEHorizontalAlign.Left);
+      plate.Reparent(c);
+      let back = TKInk.Rect(plate, 0.0, 0.0, pw, ph);
+      back.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+      back.SetOpacity(0.6);
+      v.Paint(TKInk.Rect(plate, 0.0, 0.0, 9.0, ph), "accent");
+      let under = TKInk.Rect(plate, 0.0, ph - 2.0, pw, 2.0);
+      v.Paint(under, "rule");
+      // a short run of ticks at the right end, like a stencilled panel
+      let k = 0;
+      while k < 5 {
+        let tick = TKInk.Rect(plate, pw - 24.0 - Cast<Float>(k) * 14.0, ph * 0.3, 6.0, ph * 0.4);
+        v.Paint(tick, "rule");
+        k += 1;
+      }
+      let label = v.Text(plate, r.text, size, n"Semi-Bold", "accent", 0.0);
+      label.SetMargin(inkMargin(26.0, 5.0, 0.0, 0.0));
+      v.Grew(ph + 36.0);
+      return;
+    }
     let head = v.Text(c, r.text, TKScale.I("heading", 46), n"Medium", "accent", 0.0);
     head.SetMargin(inkMargin(0.0, 22.0, 0.0, 6.0));
     v.Grew(Cast<Float>(TKScale.I("heading", 46)) * 1.4 + 45.0);
@@ -81,7 +109,11 @@ public abstract class TKRows {
     let top = TKInk.Strip(c, 10.0);
     v.Hoverable(v.Text(top, r.text, TKScale.I("meter.font", 30), n"Medium", "text", 0.0), r.tip);
     v.Text(top, "   " + r.value, TKScale.I("meter.font", 30), n"Semi-Bold", "value", 0.0);
-    TKInk.Meter(c, MinF(TKScale.F("meter.w", 900.0), v.Width()), TKScale.F("meter.h", 10.0), r.fraction, TKTheme.Gold(), 6.0);
+    let mw = MinF(TKScale.F("meter.w", 900.0), v.Width());
+    let mh = TKScale.F("meter.h", 10.0) + (v.Style().segmentedBars > 1 ? 6.0 : 0.0);
+    let track = TKInk.Track(c, mw, mh, 6.0);
+    TKInk.Rect(track, 0.0, 0.0, MaxF(2.0, mw * ClampF(r.fraction, 0.0, 1.0)), mh).SetTintColor(TKTheme.Gold());
+    v.Segments(track, 0.0, 0.0, mw, mh);
     v.Grew(Cast<Float>(TKScale.I("meter.font", 30)) * 1.4 + TKScale.F("meter.h", 10.0) + 16.0);
   }
 

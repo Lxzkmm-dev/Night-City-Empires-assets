@@ -29,6 +29,14 @@ public class MyContent extends TKContent {
 
 `TKPopup` gives you a lens tint over the world, HUD corner brackets, a brand line, sidebar tabs, a scrolling page with a scroll bar, tooltips, a footer and a boot flicker. The wheel scrolls, the right mouse button goes back a page (closing a dialog or a list first), Esc closes. Override `Brand`, `Status`, `Footer`, `BootText`, `StartPage`, `CornerTab` (a button top right), `Lens`, the sizes, and the hooks `Setup` (before building), `Icon` (an image left of the brand), `Opened` (the first page), `Closing` and `Closed`. `examples/HelloTerminal` is a complete mod to copy.
 
+### A look of your own
+
+All optional; without them a frame looks as it always has.
+
+- **Palette**: subclass `TKPalette` (`Id()`, `Color(role)` for `title`, `accent`, `text`, `value`, `frame`, `rule`) and call `TKTheme.Register(new MyPalette())` when the player attaches. Pick it with `p.SetTheme("my_id")`. `TKTheme.Ids()` lists the built-ins, then the registered ones.
+- **Style**: override `TKPopup.Style()` to return a `TKStyle`: `frame` (0 brackets, 1 notched corners, 2 armoured double border), `rivets`, `hazard` (stripe blocks in two corners), `scanlines` (overlay opacity), `headerPlates` (headings on a dark plate), `segmentedBars` (meters and stat bars in N cells), `openSound` / `closeSound` / `selectSound`.
+- **Boot**: `BootLines()` shows several lines one after another in place of `BootText()`; `BootSeconds()` sets how long they stay.
+
 ## Pages
 
 A page is a title, a subtitle (hidden when empty), a status message and rows (`TKPage.reds`). Your `TKContent` fills it in `Request` and runs buttons in `Act` (set `p.GoTo`, `p.SetMessage`, `p.Rebuild()` or `p.skipRedraw`).

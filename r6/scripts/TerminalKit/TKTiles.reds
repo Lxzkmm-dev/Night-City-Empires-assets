@@ -34,6 +34,7 @@ public abstract class TKTiles {
       let fill = TKInk.Rect(tile, 18.0, h - 24.0, MaxF(3.0, (w - 36.0) * ClampF(r.fraction, 0.0, 1.0)), 8.0);
       v.Paint(fill, "value");
       v.Mark(fill, red, green);
+      v.Segments(tile, 18.0, h - 24.0, w - 36.0, 8.0);
     }
   }
 
