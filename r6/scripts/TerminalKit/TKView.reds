@@ -348,7 +348,8 @@ public class TKView extends IScriptable {
     if StrBeginsWith(label, "?") {
       let yes = StrAfterFirst(label, "?");
       // what the row is about: its title (a card's name, a tile's name), marks off
-      let about = StrContains(row.text, "|") ? TKStr.Part(row.text, "|", row.kind == TKKind.Card() ? 1 : 0) : row.text;
+      let named = row.kind == TKKind.Card() || row.kind == TKKind.File() || row.kind == TKKind.Posting() || row.kind == TKKind.Run();
+      let about = StrContains(row.text, "|") ? TKStr.Part(row.text, "|", named ? 1 : 0) : row.text;
       let red: Bool;
       let green: Bool;
       about = TKTheme.Unmark(about, red, green);
@@ -627,7 +628,10 @@ public class TKView extends IScriptable {
       }
       if now >= end && !this.m_liveFired[k] {
         this.m_liveFired[k] = true;
-        if fire < 0 && StrLen(this.m_data.Row(this.m_liveRows[k]).action) > 0 {
+        // only a Countdown / Progress row runs its action when it ends (a card's
+        // actions are its buttons)
+        let lr = this.m_data.Row(this.m_liveRows[k]);
+        if fire < 0 && lr.kind == TKKind.Live() && StrLen(lr.action) > 0 {
           fire = this.m_liveRows[k];
         }
       }
@@ -703,10 +707,13 @@ public class TKView extends IScriptable {
     if !this.m_data.answered {
       this.m_title.SetText(TKScale.T("LINK OFFLINE"));
       this.m_subtitle.SetText(TKScale.T("Load a save first, then try again."));
+      this.m_subtitle.SetVisible(true);
       return;
     }
     this.m_title.SetText(TKScale.T(this.m_data.title));
     this.m_subtitle.SetText(TKScale.T(this.m_data.subtitle));
+    // a page with no description doesn't keep the empty line for it
+    this.m_subtitle.SetVisible(StrLen(this.m_data.subtitle) > 0 && !this.m_data.bare);
     if StrLen(this.m_data.message) > 0 {
       this.m_message.SetText(TKScale.T(this.m_data.message));
     }
@@ -728,7 +735,8 @@ public class TKView extends IScriptable {
 
   private func Draw(i: Int32, r: ref<TKRow>) -> Void {
     let kind = r.kind;
-    if kind != TKKind.Card() && kind != TKKind.Ticker() && kind != TKKind.Stat() && kind != TKKind.Tile() && kind != TKKind.Gauge() {
+    if kind != TKKind.Card() && kind != TKKind.Ticker() && kind != TKKind.Stat() && kind != TKKind.Tile() && kind != TKKind.Gauge()
+      && kind != TKKind.File() && kind != TKKind.Posting() && kind != TKKind.Run() {
       this.m_cards = null;   // the next card or tile starts a new line
     }
     switch kind {
@@ -768,6 +776,9 @@ public class TKView extends IScriptable {
       case 36: TKControls.Choice(this, i, r); break;
       case 37: TKTiles.Gauge(this, r); break;
       case 38: TKRows.Stack(this, r); break;
+      case 39: TKCards.File(this, i, r); break;
+      case 40: TKCards.Posting(this, i, r); break;
+      case 41: TKCards.Run(this, i, r); break;
       default: break;
     }
   }

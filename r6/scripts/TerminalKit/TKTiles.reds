@@ -69,14 +69,31 @@ public abstract class TKTiles {
       TKInk.Seg(tile, a, b, long ? 5.0 : 4.0, lit ? color : new HDRColor(0.35, 0.37, 0.4, 1.0), lit ? 1.0 : 0.45);
       k += 1;
     }
-    // the needle and its hub
+    // the needle: a glow behind, then a blade that tapers from the hub to a fine
+    // tip in the lit colour, a short counterweight tail, a two-tone hub
     let na = Deg2Rad(180.0 - 180.0 * f);
-    let tip = Vector2(cx + CosF(na) * (radius - 26.0), cy - SinF(na) * (radius - 26.0));
-    TKInk.Seg(tile, Vector2(cx, cy), tip, 4.0, new HDRColor(0.92, 0.94, 0.96, 1.0), 1.0);
-    let hub = TKInk.Rect(tile, cx - 8.0, cy - 8.0, 16.0, 16.0);
+    let dir = Vector2(CosF(na), -SinF(na));
+    let reach = radius - 24.0;
+    let lit = StrLen(r.color) > 0 ? TKTheme.Gold() : (f < 0.34 ? TKTheme.Loss() : (f < 0.67 ? TKTheme.Amber() : TKTheme.Gain()));
+    let white = new HDRColor(0.94, 0.95, 0.97, 1.0);
+    let c = Vector2(cx, cy);
+    TKInk.Seg(tile, c, TKTiles.Along(c, dir, reach + 4.0), 16.0, lit, 0.16);
+    TKInk.Seg(tile, TKTiles.Along(c, dir, -22.0), c, 9.0, white, 0.85);
+    TKInk.Seg(tile, c, TKTiles.Along(c, dir, reach * 0.42), 8.0, white, 1.0);
+    TKInk.Seg(tile, TKTiles.Along(c, dir, reach * 0.38), TKTiles.Along(c, dir, reach * 0.78), 5.0, white, 1.0);
+    TKInk.Seg(tile, TKTiles.Along(c, dir, reach * 0.74), TKTiles.Along(c, dir, reach), 3.0, lit, 1.0);
+    let hub = TKInk.Rect(tile, cx - 14.0, cy - 14.0, 28.0, 28.0);
     hub.SetRenderTransformPivot(Vector2(0.5, 0.5));
     hub.SetRotation(45.0);
-    hub.SetTintColor(new HDRColor(0.92, 0.94, 0.96, 1.0));
+    hub.SetTintColor(new HDRColor(0.06, 0.07, 0.09, 1.0));
+    let ring = TKInk.Rect(tile, cx - 11.0, cy - 11.0, 22.0, 22.0);
+    ring.SetRenderTransformPivot(Vector2(0.5, 0.5));
+    ring.SetRotation(45.0);
+    ring.SetTintColor(white);
+    let core = TKInk.Rect(tile, cx - 6.0, cy - 6.0, 12.0, 12.0);
+    core.SetRenderTransformPivot(Vector2(0.5, 0.5));
+    core.SetRotation(45.0);
+    core.SetTintColor(lit);
     // the value, centred under the hub
     let red: Bool;
     let green: Bool;
@@ -95,6 +112,9 @@ public abstract class TKTiles {
       sub.SetMargin(inkMargin(0.0, h - 34.0, 0.0, 0.0));
     }
   }
+
+  // the point `d` along `dir` from `c`
+  private static func Along(c: Vector2, dir: Vector2, d: Float) -> Vector2 = Vector2(c.X + dir.X * d, c.Y + dir.Y * d)
 
   // ---- opener tile: a bar and the name in its colour, the value, a line, a button ----
   // (p.SetExtra("w:h") on the row sizes it; a colour "*colour" frames it: the one selected)

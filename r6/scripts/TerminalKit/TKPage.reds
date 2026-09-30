@@ -50,6 +50,9 @@ public abstract class TKKind {
   public static func Choice() -> Int32 = 36
   public static func Gauge() -> Int32 = 37
   public static func Stack() -> Int32 = 38
+  public static func File() -> Int32 = 39
+  public static func Posting() -> Int32 = 40
+  public static func Run() -> Int32 = 41
 }
 
 public class TKRow extends IScriptable {
@@ -235,6 +238,27 @@ public class TKPage extends IScriptable {
   // bottom as in Buttons; `bright` false dims the card; a "*colour" frames it.
   public func Card(head: String, details: String, color: String, labels: String, actions: String, args: String, bright: Bool) -> Void {
     this.PushAct(TKKind.Card(), head, details, color, labels, actions, args, 0.0, bright);
+  }
+  // A personnel file, laid out in a grid like cards. head "FILE #|NAME|ROLE
+  // LINE|STAMP": the number and a barcode along the top, the stamp top right, a
+  // mugshot frame with the initials, the name and role beside it. stats
+  // "HP:3|STR:2" as bars out of 10; lines "a|b" (card marks); a quote. Buttons
+  // along the bottom as in Card; a "*colour" frames it.
+  public func File(head: String, stats: String, lines: String, quote: String, color: String, labels: String, actions: String, args: String, bright: Bool) -> Void {
+    this.PushAct(TKKind.File(), head, stats + "\n" + lines + "\n" + quote, color, labels, actions, args, 0.0, bright);
+  }
+  // A job posting on a board, laid out in a grid like cards. head "POST #|TITLE|
+  // CLIENT|PAY|TIME LEFT"; chips "HEIST|TIER 3|!HOT" (a mark colours a chip);
+  // lines "a|b" (card marks); odds 0..1 on a meter (below 0: none). Buttons
+  // along the bottom as in Card; a "*colour" frames it.
+  public func Posting(head: String, chips: String, lines: String, odds: Float, color: String, labels: String, actions: String, args: String, bright: Bool) -> Void {
+    this.PushAct(TKKind.Posting(), head, chips + "\n" + lines, color, labels, actions, args, odds, bright);
+  }
+  // A run in progress, laid out in a grid like cards. head "TAG|TITLE|SUB|STAMP";
+  // lines "a|b" (card marks); a live bar fills from `start` to `end` (TKClock
+  // time) with the percent and the time left. Buttons along the bottom as in Card.
+  public func Run(head: String, lines: String, start: Float, end: Float, color: String, labels: String, actions: String, args: String, bright: Bool) -> Void {
+    this.PushAct(TKKind.Run(), head, lines + "\n" + FloatToString(start) + "|" + FloatToString(end), color, labels, actions, args, 0.0, bright);
   }
   // A departures board line: cells across the columns `cols` (as Ledger) on dark
   // split-flap tiles in amber; style "title" (large, no tiles, a rule under it),

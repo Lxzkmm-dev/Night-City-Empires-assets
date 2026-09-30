@@ -242,21 +242,9 @@ public abstract class TKRows {
     col.Reparent(row);
     v.Text(col, r.text, TKScale.TypeXL(), n"Semi-Bold", "title", 0.0);
     v.Text(col, r.value, TKScale.I("row.detail", 29), n"Medium", "text", 4.0);
-    // the stamp: a bordered box with the status, slightly tilted
-    let size = 30;
-    let w = Cast<Float>(StrLen(r.label)) * 0.62 * Cast<Float>(size) + 48.0;
-    let box: ref<inkCanvas> = new inkCanvas();
-    box.SetSize(Vector2(w, 60.0));
-    box.SetAnchor(inkEAnchor.TopRight);
-    box.SetAnchorPoint(Vector2(1.0, 0.0));
-    box.SetMargin(inkMargin(0.0, 20.0, 10.0, 0.0));
-    box.SetRotation(-4.0);
-    box.Reparent(row);
-    v.TonedFrame(box, w, 60.0, 3.0, r.color);
-    let t = v.Text(box, r.label, size, n"Semi-Bold", "value", 0.0);
-    t.SetAnchor(inkEAnchor.Centered);
-    t.SetAnchorPoint(Vector2(0.5, 0.5));
-    v.Tone(t, r.color);
+    // the stamp: a dark box with a clean frame and the status (drawn square: a
+    // tilted box stair-stepped along its edges)
+    TKCards.Stamp(v, row, r.label, r.color, 10.0, 22.0, 30);
     v.Rule(c, 6.0, 0.8);
     v.Grew(134.0);
   }
