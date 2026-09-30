@@ -38,21 +38,31 @@ public abstract class TKTiles {
   }
 
   // ---- opener tile: a bar and the name in its colour, the value, a line, a button ----
+  // (p.SetExtra("w:h") on the row sizes it; a colour "*colour" frames it: the one selected)
   public static func Tile(v: ref<TKView>, i: Int32, r: ref<TKRow>) -> Void {
     let w = TKScale.F("tile.w", 350.0);
     let h = TKScale.F("tile.h", 236.0);
+    if StrContains(r.extra, ":") {
+      w = StringToFloat(StrBeforeFirst(r.extra, ":"), w);
+      h = StringToFloat(StrAfterFirst(r.extra, ":"), h);
+    }
     let tile = v.GridCell(TKKind.Tile(), w, h);
     if !r.on {
       tile.SetOpacity(0.6);
     }
     v.Panel(tile, w, h, 0.45);
+    let color = r.color;
+    if StrBeginsWith(color, "*") {
+      color = StrMid(color, 1, StrLen(color) - 1);
+      v.TonedFrame(tile, w, h, 4.0, color);
+    }
     let parts = TKStr.Split(r.text, "|");
     let bar = TKInk.Rect(tile, 0.0, 0.0, w, 6.0);
     v.Paint(bar, "value");
-    v.Tone(bar, r.color);
+    v.Tone(bar, color);
     let name = v.Text(tile, parts[0], 26, n"Semi-Bold", "value", 0.0);
     name.SetMargin(inkMargin(18.0, 18.0, 0.0, 0.0));
-    v.Tone(name, r.color);
+    v.Tone(name, color);
     v.Hoverable(name, r.tip);
     let red: Bool;
     let green: Bool;
