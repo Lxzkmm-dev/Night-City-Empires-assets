@@ -229,8 +229,13 @@ public abstract class TKScaleSource extends IScriptable {
   public func Text(text: String) -> String { return text; }
 }
 
+// the kit's own numbers and texts: a frame returns one from ScaleSource() to
+// stay clear of whatever another mod plugged in with TKScale.Use
+public class TKScaleDefaults extends TKScaleSource {}
+
 public class TKScaleSystem extends ScriptableSystem {
-  public let source: ref<TKScaleSource>;
+  public let source: ref<TKScaleSource>;   // the shared slot (TKScale.Use)
+  public let active: ref<TKScaleSource>;   // the open frame's own source, while it is open
 
   public static func Get() -> ref<TKScaleSystem> = GameInstance.GetScriptableSystemsContainer(GetGameInstance()).Get(n"TerminalKit.TKScaleSystem") as TKScaleSystem
 }
@@ -246,7 +251,22 @@ public abstract class TKScale {
   // A layout number by key, or `def` when the source hasn't set it
   public static func F(key: String, def: Float) -> Float {
     let sys = TKScaleSystem.Get();
-    return IsDefined(sys) && IsDefined(sys.source) ? sys.source.Value(key, def) : def;
+    if !IsDefined(sys) {
+      return def;
+    }
+    if IsDefined(sys.active) {
+      return sys.active.Value(key, def);
+    }
+    return IsDefined(sys.source) ? sys.source.Value(key, def) : def;
+  }
+
+  // The open frame's own source (TKPopup sets it from ScaleSource() while it is
+  // open; null hands the shared slot back)
+  public static func Activate(source: ref<TKScaleSource>) -> Void {
+    let sys = TKScaleSystem.Get();
+    if IsDefined(sys) {
+      sys.active = source;
+    }
   }
 
   public static func I(key: String, def: Int32) -> Int32 = RoundF(TKScale.F(key, Cast<Float>(def)))
@@ -254,7 +274,13 @@ public abstract class TKScale {
   // A text with the source's replacements applied
   public static func T(text: String) -> String {
     let sys = TKScaleSystem.Get();
-    return IsDefined(sys) && IsDefined(sys.source) && StrLen(text) > 0 ? sys.source.Text(text) : text;
+    if !IsDefined(sys) || StrLen(text) == 0 {
+      return text;
+    }
+    if IsDefined(sys.active) {
+      return sys.active.Text(text);
+    }
+    return IsDefined(sys.source) ? sys.source.Text(text) : text;
   }
 
   // ---- the tokens: five type sizes and four spacings, so rows share a scale ----

@@ -127,6 +127,19 @@ public abstract class TKTools {
     }
   }
 
+  // Several mods can share the tools: each calls this with its own host before
+  // TKTools.Request / Act (and before LogStop from a key). It switches only when
+  // the tools were last used for another storage folder, so it is cheap to repeat.
+  public static func UseFor(host: ref<TKToolsHost>) -> Void {
+    let sys = TKToolsSystem.Get();
+    if !IsDefined(sys) || !IsDefined(host) {
+      return;
+    }
+    if !IsDefined(sys.host) || NotEquals(sys.host.Storage(), host.Storage()) {
+      TKTools.Use(host);
+    }
+  }
+
   public static func Sys() -> ref<TKToolsSystem> = TKToolsSystem.Get()
   public static func Store() -> ref<ModStorage> = ModStorage.Open(TKTools.Sys().Host().Storage())
   private static func Warn(text: String) -> Void { TKTools.Sys().Host().Warn(text); }

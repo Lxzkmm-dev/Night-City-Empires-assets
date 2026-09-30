@@ -55,6 +55,9 @@ public class TKPopup extends InGamePopup {
   }
   public func BootSeconds() -> Float = 0.0                          // how long the boot text stays (0: the kit's timing)
   public func Style() -> ref<TKStyle> = null                        // the frame's look (null: the kit's normal look)
+  // this frame's own layout numbers and texts while it is open (null: the shared
+  // TKScale.Use slot; `new TKScaleDefaults()`: the kit's own, whatever other mods set)
+  public func ScaleSource() -> ref<TKScaleSource> = null
   public func StartPage() -> String = "home"
   public func StartArg() -> String = ""
   public func CornerTab() -> String = ""                            // "LABEL|page": a button top right
@@ -177,6 +180,7 @@ public class TKPopup extends InGamePopup {
 
   protected cb func OnCreate() -> Void {
     super.OnCreate();
+    TKScale.Activate(this.ScaleSource());
     this.Setup();
     this.RegisterToGlobalInputCallback(n"OnPostOnRelative", this, n"OnFrameRelative");
     this.RegisterToGlobalInputCallback(n"OnPostOnPress", this, n"OnFramePress");
@@ -599,6 +603,7 @@ public class TKPopup extends InGamePopup {
       this.m_view.StopLive();
     }
     this.Closing();
+    TKScale.Activate(null);
     super.OnHidden();
     this.Closed();
   }
