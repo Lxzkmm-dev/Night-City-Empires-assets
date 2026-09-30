@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!-- Hello Terminal (TerminalKit example): K opens and closes it. Needs Input Loader. -->
+<bindings>
+	<context name="HelloTerminal">
+		<action name="Hello_Open" map="Hello_Open_Button" />
+	</context>
+
+	<context name="Items" append="true">
+		<include name="HelloTerminal" />
+	</context>
+
+	<acceptedEvents action="Hello_Open">
+		<event name="BUTTON_PRESSED" />
+	</acceptedEvents>
+
+	<mapping name="Hello_Open_Button" type="Button">
+		<button id="IK_K" />
+	</mapping>
+</bindings>

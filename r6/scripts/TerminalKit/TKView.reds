@@ -37,10 +37,25 @@ public class TKView extends IScriptable {
   // ---- history (Back: the right mouse button in the frame) ----
   private let m_history: array<String>;      // pages left behind, "page~arg", newest last
   private let m_noPush: Bool;                // a Show from Back: the page left isn't recorded
-  // ---- tooltips ----
+  // ---- the overlay: tooltips, dialogs, drop-down lists ----
   private let m_tipLayer: wref<inkCanvas>;
   private let m_tips: array<String>;
   private let m_tip: wref<inkWidget>;
+  private let m_popup: wref<inkWidget>;       // the open dialog or drop-down list
+  private let m_blocker: wref<inkWidget>;     // the see-through layer under it (a click there closes it)
+  private let m_dlgAction: String;
+  private let m_dlgArg: String;
+  private let m_dropRow: Int32;
+  // ---- live rows (countdowns, progress bars) ----
+  private let m_liveRows: array<Int32>;
+  private let m_liveFills: array<wref<inkRectangle>>;
+  private let m_liveTexts: array<wref<inkText>>;
+  private let m_liveWidths: array<Float>;
+  private let m_liveStarts: array<Float>;
+  private let m_liveEnds: array<Float>;
+  private let m_liveModes: array<Int32>;
+  private let m_liveFired: array<Bool>;
+  private let m_liveGen: Int32;
   // ---- the page being shown ----
   private let m_data: ref<TKPage>;
   private let m_page: String;
@@ -321,7 +336,21 @@ public class TKView extends IScriptable {
     if n < 0 || n >= ArraySize(row.actions) {
       return true;
     }
-    this.Act(row.actions[n], row.args[n]);
+    let arg = row.args[n];
+    if row.kind == TKKind.Search() {
+      arg = this.FieldText(row.extra);   // a search button hands over what's typed
+    }
+    // "?LABEL": ask first
+    let label = n < ArraySize(row.labels) ? row.labels[n] : "";
+    if StrBeginsWith(label, "!") {
+      label = StrAfterFirst(label, "!");
+    }
+    if StrBeginsWith(label, "?") {
+      let yes = StrAfterFirst(label, "?");
+      this.Dialog(yes + "?" + (StrLen(row.text) > 0 ? "\n" + row.text : ""), yes, row.actions[n], arg);
+      return true;
+    }
+    this.Act(row.actions[n], arg);
     return true;
   }
 
@@ -341,6 +370,266 @@ public class TKView extends IScriptable {
     let next = StrLen(act.nextPage) > 0 ? act.nextPage : this.m_page;
     let nextArg = StrLen(act.nextPage) > 0 ? act.nextArg : this.m_arg;
     this.Show(next, nextArg, act.message);
+    if StrLen(act.confirmAction) > 0 {
+      this.Dialog(act.confirmText, StrLen(act.confirmYes) > 0 ? act.confirmYes : "CONFIRM", act.confirmAction, act.confirmArg);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Controls: check boxes, sortable heads, drop-downs, dialogs
+  // ---------------------------------------------------------------------------
+  // a widget that reports a click to OnControlRelease under `name`
+  public func Clickable(w: ref<inkWidget>, name: String) -> Void {
+    w.SetName(StringToName(name));
+    w.SetInteractive(true);
+    w.RegisterToCallback(n"OnRelease", this, n"OnControlRelease");
+  }
+
+  // a button whose click comes to OnControlRelease (with the cursor position) under `name`
+  public func ControlButton(parent: ref<inkCompoundWidget>, label: String, name: String, width: Float, height: Float, size: Int32) -> ref<TKButton> {
+    let b = TKButton.Make(parent, label, name, width, height, size);
+    TKTheme.Paint(b.GetLabel(), this.m_theme, "value");
+    b.GetRootWidget().RegisterToCallback(n"OnRelease", this, n"OnControlRelease");
+    ArrayPush(this.m_buttons, b);
+    return b;
+  }
+
+  // "?" + the row's arg prefix: "arg:" when there is one
+  private static func Prefix(arg: String) -> String = StrLen(arg) > 0 ? arg + ":" : ""
+
+  protected cb func OnControlRelease(e: ref<inkPointerEvent>) -> Bool {
+    if !e.IsAction(n"click") {
+      return false;
+    }
+    let target = e.GetCurrentTarget();
+    if !IsDefined(target) {
+      return false;
+    }
+    let name = NameToString(target.GetName());
+    if Equals(name, "dlg_yes") {
+      let action = this.m_dlgAction;
+      let arg = this.m_dlgArg;
+      this.CloseOverlay();
+      this.Act(action, arg);
+      return true;
+    }
+    if Equals(name, "dlg_no") || Equals(name, "ovl_block") {
+      this.CloseOverlay();
+      return true;
+    }
+    if StrBeginsWith(name, "ddo_") {
+      let k = StringToInt(StrAfterFirst(name, "ddo_"), -1);
+      let row = this.m_data.Row(this.m_dropRow);
+      this.CloseOverlay();
+      if k >= 0 && k < ArraySize(row.args) {
+        this.Act(row.action, TKView.Prefix(row.arg) + row.args[k]);
+      }
+      return true;
+    }
+    if !IsDefined(this.m_data) {
+      return false;
+    }
+    if StrBeginsWith(name, "dd_") {
+      this.OpenDrop(StringToInt(StrAfterFirst(name, "dd_"), -1), e);
+      return true;
+    }
+    if StrBeginsWith(name, "ck_") {
+      let row = this.m_data.Row(StringToInt(StrAfterFirst(name, "ck_"), -1));
+      this.Act(row.action, TKView.Prefix(row.arg) + (row.on ? "0" : "1"));
+      return true;
+    }
+    if StrBeginsWith(name, "so_") {
+      let rest = StrAfterFirst(name, "so_");
+      let row = this.m_data.Row(StringToInt(StrBeforeFirst(rest, "_"), -1));
+      this.Act(row.action, TKView.Prefix(row.arg) + StrAfterFirst(rest, "_"));
+      return true;
+    }
+    return false;
+  }
+
+  // a dark layer over the page that takes clicks (and closes what's on it)
+  private func Blocker() -> Void {
+    let layer = this.m_tipLayer;
+    let block: ref<inkRectangle> = new inkRectangle();
+    block.SetSize(layer.GetSize());
+    block.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+    block.SetOpacity(0.35);
+    block.Reparent(layer);
+    this.Clickable(block, "ovl_block");
+    this.m_blocker = block;
+  }
+
+  // A question with two buttons over the page; `yes` runs Act(action, arg)
+  public func Dialog(text: String, yes: String, action: String, arg: String) -> Void {
+    if !IsDefined(this.m_tipLayer) {
+      this.Act(action, arg);   // no overlay to ask on: just do it
+      return;
+    }
+    this.CloseOverlay();
+    this.HideTip();
+    this.Blocker();
+    this.m_dlgAction = action;
+    this.m_dlgArg = arg;
+    let layer = this.m_tipLayer;
+    let w = TKScale.F("dialog.w", 1000.0);
+    let font = TKScale.I("row.title", 32);
+    let textH = TKInk.Lines(text, font, w - 80.0) * Cast<Float>(font) * 1.35;
+    let bh = TKScale.ButtonH();
+    let h = textH + bh + 130.0;
+    let box: ref<inkCanvas> = new inkCanvas();
+    box.SetSize(Vector2(w, h));
+    let size = layer.GetSize();
+    box.SetMargin(inkMargin(MaxF(0.0, (size.X - w) / 2.0), MaxF(0.0, (size.Y - h) / 2.5), 0.0, 0.0));
+    box.Reparent(layer);
+    let fill = TKInk.Rect(box, 0.0, 0.0, w, h);
+    fill.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+    let fill2 = TKInk.Rect(box, 0.0, 0.0, w, h);
+    fill2.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+    this.Frame(box, w, h, 3.0, "accent", 1.0);
+    let t = this.Text(box, text, font, n"Medium", "value", 0.0);
+    t.SetWrapping(true, w - 80.0);
+    t.SetMargin(inkMargin(40.0, 40.0, 0.0, 0.0));
+    t.SetVAlign(inkEVerticalAlign.Top);
+    let bw = TKScale.F("dialog.button", 300.0);
+    let bar: ref<inkHorizontalPanel> = new inkHorizontalPanel();
+    bar.SetAnchor(inkEAnchor.BottomRight);
+    bar.SetAnchorPoint(Vector2(1.0, 1.0));
+    bar.SetMargin(inkMargin(0.0, 0.0, 40.0, 34.0));
+    bar.Reparent(box);
+    this.ControlButton(bar, "CANCEL", "dlg_no", bw, bh, TKScale.I("button.font", 30));
+    this.ControlButton(bar, yes, "dlg_yes", bw, bh, TKScale.I("button.font", 30)).GetRootWidget().SetMargin(inkMargin(20.0, 0.0, 0.0, 0.0));
+    this.m_popup = box;
+  }
+
+  // a drop-down's list, under the cursor
+  private func OpenDrop(i: Int32, e: ref<inkPointerEvent>) -> Void {
+    if !IsDefined(this.m_tipLayer) || i < 0 || i >= this.m_data.Count() {
+      return;
+    }
+    this.CloseOverlay();
+    this.HideTip();
+    let row = this.m_data.Row(i);
+    this.m_dropRow = i;
+    this.Blocker();
+    this.m_blocker.SetOpacity(0.01);
+    let layer = this.m_tipLayer;
+    let at = WidgetUtils.GlobalToLocal(layer, e.GetScreenSpacePosition());
+    let bw = TKScale.F("dropdown.w", 420.0);
+    let bh = TKScale.F("dropdown.h", 56.0);
+    let n = ArraySize(row.labels);
+    let h = Cast<Float>(n) * (bh + 6.0) + 16.0;
+    let size = layer.GetSize();
+    let box: ref<inkCanvas> = new inkCanvas();
+    box.SetSize(Vector2(bw + 16.0, h));
+    box.SetMargin(inkMargin(ClampF(at.X - bw / 2.0, 0.0, MaxF(0.0, size.X - bw - 16.0)), ClampF(at.Y + 30.0, 0.0, MaxF(0.0, size.Y - h)), 0.0, 0.0));
+    box.Reparent(layer);
+    let fill = TKInk.Rect(box, 0.0, 0.0, bw + 16.0, h);
+    fill.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+    this.Frame(box, bw + 16.0, h, 2.0, "value", 1.0);
+    let list: ref<inkVerticalPanel> = new inkVerticalPanel();
+    list.SetMargin(inkMargin(8.0, 8.0, 0.0, 0.0));
+    list.Reparent(box);
+    let k = 0;
+    while k < n {
+      let b = this.ControlButton(list, row.labels[k], "ddo_" + IntToString(k), bw, bh, 26);
+      b.GetRootWidget().SetMargin(inkMargin(0.0, 0.0, 0.0, 6.0));
+      b.SetDisabled(k < ArraySize(row.args) && Equals(row.args[k], row.extra));
+      k += 1;
+    }
+    this.m_popup = box;
+  }
+
+  // closes an open dialog or drop-down list: true when there was one
+  public func CloseOverlay() -> Bool {
+    let had = IsDefined(this.m_popup) || IsDefined(this.m_blocker);
+    if IsDefined(this.m_tipLayer) {
+      if IsDefined(this.m_popup) {
+        this.m_tipLayer.RemoveChild(this.m_popup);
+      }
+      if IsDefined(this.m_blocker) {
+        this.m_tipLayer.RemoveChild(this.m_blocker);
+      }
+    }
+    this.m_popup = null;
+    this.m_blocker = null;
+    return had;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Live rows: countdowns and progress bars, updated every second from game time
+  // ---------------------------------------------------------------------------
+  public func AddLive(row: Int32, fill: ref<inkRectangle>, text: ref<inkText>, width: Float, start: Float, end: Float, mode: Int32) -> Void {
+    ArrayPush(this.m_liveRows, row);
+    ArrayPush(this.m_liveFills, fill);
+    ArrayPush(this.m_liveTexts, text);
+    ArrayPush(this.m_liveWidths, width);
+    ArrayPush(this.m_liveStarts, start);
+    ArrayPush(this.m_liveEnds, end);
+    ArrayPush(this.m_liveModes, mode);
+    ArrayPush(this.m_liveFired, false);
+  }
+
+  public func StopLive() -> Void {
+    this.m_liveGen += 1;
+    ArrayClear(this.m_liveRows);
+    ArrayClear(this.m_liveFills);
+    ArrayClear(this.m_liveTexts);
+    ArrayClear(this.m_liveWidths);
+    ArrayClear(this.m_liveStarts);
+    ArrayClear(this.m_liveEnds);
+    ArrayClear(this.m_liveModes);
+    ArrayClear(this.m_liveFired);
+  }
+
+  private func StartLive() -> Void {
+    if ArraySize(this.m_liveRows) > 0 {
+      this.LiveStep(this.m_liveGen);
+    }
+  }
+
+  public func LiveStep(gen: Int32) -> Void {
+    if gen != this.m_liveGen || ArraySize(this.m_liveRows) == 0 {
+      return;
+    }
+    let now = TKClock.Now();
+    let fire = -1;
+    let k = 0;
+    while k < ArraySize(this.m_liveRows) {
+      let start = this.m_liveStarts[k];
+      let end = this.m_liveEnds[k];
+      let span = MaxF(1.0, end - start);
+      let frac: Float;
+      let text: String;
+      if this.m_liveModes[k] == 0 {
+        frac = ClampF((end - now) / span, 0.0, 1.0);
+        text = now < end ? TKClock.Left(end - now) : "DONE";
+      } else {
+        frac = ClampF((now - start) / span, 0.0, 1.0);
+        text = IntToString(FloorF(frac * 100.0)) + "%";
+      }
+      if IsDefined(this.m_liveFills[k]) {
+        this.m_liveFills[k].SetSize(Vector2(MaxF(2.0, this.m_liveWidths[k] * frac), this.m_liveFills[k].GetSize().Y));
+      }
+      if IsDefined(this.m_liveTexts[k]) {
+        this.m_liveTexts[k].SetText(text);
+      }
+      if now >= end && !this.m_liveFired[k] {
+        this.m_liveFired[k] = true;
+        if fire < 0 && StrLen(this.m_data.Row(this.m_liveRows[k]).action) > 0 {
+          fire = this.m_liveRows[k];
+        }
+      }
+      k += 1;
+    }
+    if fire >= 0 {
+      let row = this.m_data.Row(fire);
+      this.Act(row.action, row.arg);   // redraws: a new set of live rows takes over
+      return;
+    }
+    let cb = new TKLiveTick();
+    cb.view = this;
+    cb.gen = gen;
+    GameInstance.GetDelaySystem(GetGameInstance()).DelayCallback(cb, 1.0, false);
   }
 
   // ---------------------------------------------------------------------------
@@ -361,6 +650,8 @@ public class TKView extends IScriptable {
     this.m_page = page;
     this.m_arg = arg;
     this.StopCustom();
+    this.StopLive();
+    this.CloseOverlay();
     this.HideTip();
     ArrayClear(this.m_tips);
     this.grown = 0.0;
@@ -414,6 +705,7 @@ public class TKView extends IScriptable {
     this.m_width = width;
     // a redraw of the same page keeps its place; a new page starts at the top
     this.ScrollTo(same ? this.m_scrollY : 0.0);
+    this.StartLive();
   }
 
   private func Draw(i: Int32, r: ref<TKRow>) -> Void {
@@ -448,6 +740,13 @@ public class TKView extends IScriptable {
       case 26: TKTiles.Ticker(this, r); break;
       case 27: TKTiles.Stat(this, r); break;
       case 28: TKTiles.Tile(this, i, r); break;
+      case 29: TKControls.Dropdown(this, i, r); break;
+      case 30: TKControls.Check(this, i, r); break;
+      case 31: TKControls.Search(this, i, r); break;
+      case 32: TKControls.SortHead(this, i, r); break;
+      case 33: TKControls.Pager(this, i, r); break;
+      case 34: TKControls.Live(this, i, r); break;
+      case 35: TKControls.Message(this, r); break;
       default: break;
     }
   }
@@ -601,10 +900,15 @@ public class TKView extends IScriptable {
     w.SetMargin(inkMargin(0.0, 2.0, 0.0, 0.0));
   }
 
-  // a button that runs row i's button n (its label from the row: a leading "!" disables it)
+  // a button that runs row i's button n (its label from the row: a leading "!"
+  // disables it, a "?" asks first)
   public func ActButton(parent: ref<inkCompoundWidget>, i: Int32, n: Int32, label: String, on: Bool, width: Float, height: Float, size: Int32) -> ref<TKButton> {
     let off = StrBeginsWith(label, "!");
-    let b = TKButton.Make(parent, off ? StrAfterFirst(label, "!") : label, "act_" + IntToString(i) + (n > 0 ? "_" + IntToString(n) : ""), width, height, size);
+    let shown = off ? StrAfterFirst(label, "!") : label;
+    if StrBeginsWith(shown, "?") {
+      shown = StrAfterFirst(shown, "?");
+    }
+    let b = TKButton.Make(parent, shown, "act_" + IntToString(i) + (n > 0 ? "_" + IntToString(n) : ""), width, height, size);
     b.SetDisabled(off || !on);
     b.RegisterToCallback(n"OnBtnClick", this, n"OnActClick");
     TKTheme.Paint(b.GetLabel(), this.m_theme, "value");
@@ -658,16 +962,34 @@ public class TKView extends IScriptable {
     this.grown += 106.0;
     let name = this.Text(row, r.text, TKScale.I("row.title", 32), n"Medium", "value", 0.0);
     name.SetMargin(inkMargin(0.0, 24.0, 0.0, 0.0));
+    this.TextBox(row, r.value, r.arg, 440.0, this.RowWidth() - 460.0);
+  }
+
+  // a text box at x in `parent`, its text handed to actions as field `key`
+  public func TextBox(parent: ref<inkCompoundWidget>, value: String, key: String, x: Float, width: Float) -> ref<HubTextInput> {
     let box = HubTextInput.Create();
-    box.SetName(StringToName("in_" + r.arg));
-    box.SetText(r.value);
+    box.SetName(StringToName("in_" + key));
+    box.SetText(value);
     box.SetLetterCase(textLetterCase.OriginalCase);
     box.SetMaxLength(300);
-    box.Reparent(row);
-    box.SetWidth(this.RowWidth() - 460.0);
-    box.GetRootWidget().SetMargin(inkMargin(440.0, 0.0, 0.0, 0.0));
+    box.Reparent(parent);
+    box.SetWidth(width);
+    box.GetRootWidget().SetMargin(inkMargin(x, 0.0, 0.0, 0.0));
     ArrayPush(this.m_inputs, box);
-    ArrayPush(this.m_inputKeys, r.arg);
+    ArrayPush(this.m_inputKeys, key);
+    return box;
+  }
+
+  // what's typed in the text box `key` now
+  public func FieldText(key: String) -> String {
+    let k = 0;
+    while k < ArraySize(this.m_inputs) {
+      if Equals(this.m_inputKeys[k], key) {
+        return this.m_inputs[k].GetText();
+      }
+      k += 1;
+    }
+    return "";
   }
 
   // copy every text box into the action's page object
@@ -838,5 +1160,16 @@ public class TKView extends IScriptable {
       this.m_provider.Rebuild();
     }
     this.Show(StrLen(act.nextPage) > 0 ? act.nextPage : this.m_page, StrLen(act.nextPage) > 0 ? act.nextArg : this.m_arg, act.message);
+  }
+}
+
+// the live rows' one-second tick (stops when the page changes)
+public class TKLiveTick extends DelayCallback {
+  public let view: wref<TKView>;
+  public let gen: Int32;
+  public func Call() -> Void {
+    if IsDefined(this.view) {
+      this.view.LiveStep(this.gen);
+    }
   }
 }

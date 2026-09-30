@@ -1,37 +1,74 @@
 # TerminalKit
 
-A page engine for in-game terminals, written in redscript. It draws pages described as data (rows) inside any frame you build, with the game's own fonts, buttons and colours. Night City Empires' Fixer Link runs on it; it knows nothing about that mod, so it can be dropped into another one.
+A redscript framework for full in-game terminal UIs in Cyberpunk 2077: native, no CET, built by describing pages as rows instead of placing widgets. It ships a ready-made frame, a page renderer with about 35 row types, controls, a pan-and-zoom map, HUD pieces and a small data kit. Night City Empires' Fixer Link runs on it, and the kit knows nothing about that mod.
 
-Needs **Codeware** (buttons, text boxes, the popup base) and **RedFunctions** (the mouse state). Copy `r6/scripts/TerminalKit` into your mod and `import TerminalKit.*`.
+Needs **Codeware** (popups, buttons, text boxes) and **RedFunctions** (mouse state, files, the TweakDB name table). Copy `r6/scripts/TerminalKit` into your mod and `import TerminalKit.*`. The optional dev tools live next to it in `r6/scripts/TerminalKitTools` (see its README).
 
-## The pieces
-
-- **TKPage** (`TKPage.reds`): a page is a title, a subtitle, a status message and a list of `TKRow`s. Builders: `Heading`, `Text`, `Pair`, `Meter`, `Button`, `Note`, `Gap`, `Item` (text, value, a button), `Levels` (an item with a level track), `Buttons` (several buttons on a row), `Links` (a tab row), `Slider`, `Track` (a meter with named marks), `Section` (collapsible), `Input` (a text box), `Entry` (a feed entry), `Dossier`, `Columns`, `Ledger` (a table line), `Board` (a departures-board line), `Card`, `Stat`, `Ticker`, `Tile`, `Column` / `EndColumns` (side-by-side layout), `Custom` (a row your provider draws itself).
-  - Action rows split their buttons once, typed: `row.labels`, `row.actions`, `row.args`. String builders take `"A|B"` labels, `"a|b"` actions and `"x|y"` args (or `"x\ny"` when an arg holds `|`); `Actions(...)` takes arrays. A row with one action keeps its whole arg.
-  - Marks in text: a leading `!` shows red, `*` green (neither is shown), `+` amounts green; on boards `^` bright yellow and `~` grey.
-- **TKContent** (`TKPage.reds`): what the kit asks of your mod. Subclass it: `Request(page, name, arg)` fills the page, `Act(page, action, arg)` runs a button (set `page.GoTo`, `page.SetMessage`, `page.rebuild` or `page.skipRedraw`), `Custom(...)` draws a custom row and returns a `TKCustom` the view stops when the page goes, `Rebuild()` rebuilds your frame when the layout changed.
-- **TKView** (`TKView.reds`): the renderer. Your frame gives it a content panel, a title, a subtitle and a message line (`Bind`), optionally a scroll area (`BindScroll`), your `TKContent` (`SetContent`) and a `TKFrame` (`SetFrame`: the input owner and a way to hide the frame around a bare page). `Show(page, arg, message)` draws a page; `AddTab` adds sidebar tabs; `Chrome` registers frame pieces that follow the palette. The mouse wheel scrolls when your frame forwards its global relative input to `OnWheel`.
-- **TKRows / TKTables / TKTiles**: the components, one static draw function per row kind, all drawing through the view's helpers (`Text`, `RowBox`, `ActButton`, `GridCell`, `Panel`, `Frame`, `Rule`...). Add a kind by adding a builder to `TKPage`, a case to `TKView.Draw` and a draw function.
-- **TKTheme** (`TKTheme.reds`): palettes by role (`title`, `accent`, `text`, `value`, `frame`, `rule`); `hud` follows the game's own UI colours. `Tone` maps row colour names; `Gain` / `Loss` / `Amber` / `Gold` are the status colours.
-- **TKScale**: layout numbers by key with defaults, and the tokens (five type sizes, four spacings). Plug a `TKScaleSource` in with `TKScale.Use(...)` to feed values (a tuner, a settings file) and text replacements.
-- **TKInk**: small widget builders (text, strips, meters, rectangles, lines).
-- **TKButton**: a vanilla-style button sized for a page; **TKSlider**: a slider's live state.
-
-## A minimal frame
+## Start here: the ready-made frame
 
 ```
-let view = new TKView();
-view.SetContent(new MyContent());        // extends TKContent
-view.AddTab(sidebar, "HOME", "home", 460.0, 74.0, 30);
-view.Bind(contentPanel, titleText, subtitleText, messageText, 2300.0);
-view.BindScroll(scrollArea, 1080.0, trackRect, barRect);   // optional
-view.Show("home", "", "");
+public class MyTerminal extends TKPopup {
+  public func Content() -> ref<TKContent> = new MyContent()
+  public func Tabs() -> array<String> = ["HOME|home", "CREW|crew"]
+  public func Name() -> String = "MY TERMINAL"
+}
+
+public class MyContent extends TKContent {
+  public func Request(p: ref<TKPage>, page: String, arg: String) -> Void {
+    p.SetTitle("HOME", "Welcome back");
+    p.Stat("EDDIES", "12,500", "*+2,100 today", 0.6);
+    p.Item("A ROW WITH A BUTTON", "a detail line", "", "PRESS", "press", "", true);
+  }
+  public func Act(p: ref<TKPage>, action: String, arg: String) -> Void {
+    if Equals(action, "press") { p.SetMessage("PRESSED"); }
+  }
+}
+
+// from your key: if TKPopup.CanOpen(player) { TKPopup.Open(player, new MyTerminal()); }
 ```
 
-Forward your popup's `OnPostOnRelative` global input to `view.OnWheel(e)` for scrolling, and call `view.StopCustom()` when the frame closes.
+`TKPopup` gives you a lens tint over the world, HUD corner brackets, a brand line, sidebar tabs, a scrolling page with a scroll bar, tooltips, a footer and a boot flicker. The wheel scrolls, the right mouse button goes back a page (closing a dialog or a list first), Esc closes. Override `Brand`, `Status`, `Footer`, `BootText`, `StartPage`, `CornerTab` (a button top right), `Lens`, the sizes, and the hooks `Setup` (before building), `Icon` (an image left of the brand), `Opened` (the first page), `Closing` and `Closed`. `examples/HelloTerminal` is a complete mod to copy.
+
+## Pages
+
+A page is a title, a subtitle, a status message and rows (`TKPage.reds`). Your `TKContent` fills it in `Request` and runs buttons in `Act` (set `p.GoTo`, `p.SetMessage`, `p.Rebuild()` or `p.skipRedraw`).
+
+- **Text and layout**: `Heading`, `Text`, `Pair`, `Note`, `Gap`, `Columns` (two columns of pairs), `Column` / `EndColumns` (side by side), `Section` (collapsible), `Links` (a tab row), `Dossier` (a header with a stamp), `Entry` (a feed entry), `Message` (a chat bubble; yours on the right).
+- **Values**: `Meter`, `Track` (a meter with named marks), `Levels` (an item with a level track), `Stat` and `Ticker` tiles (a sparkline), `Tile` (opens something), `Card` (a listing with buttons), `Ledger` (financial table lines: head, group, line, total, net), `Board` (a departures board).
+- **Buttons**: `Button`, `Item` (text left, a button right), `Buttons` (several).
+- **Controls**: `Input` (a text box), `Search` (a box and its button), `Slider`, `Dropdown`, `Check`, `SortHead` and `Pager`; `TKSheet` builds a sortable, paged table for you.
+- **Live**: `Countdown` and `Progress` update every second from game time without redrawing, and can run an action when they finish.
+- **Custom**: `Custom(tag, ...)` is drawn by your provider's `Custom()`, which returns a `TKCustom` the view stops when the page goes (the map is one).
+
+Marks in text: a leading `!` shows red, `*` green (neither is shown), `+` amounts green; on boards `^` bright yellow and `~` grey. Button labels: `!` disables, `?` asks first ("?SELL ALL" shows a dialog). From `Act`, `p.Confirm(question, yes, action, arg)` asks before running something. `p.SetTip(text)` gives the row just added a tooltip on its title.
+
+Action rows split their buttons once, typed: `row.labels`, `row.actions`, `row.args`. String builders take `"A|B"` labels, `"a|b"` actions and `"x|y"` args (or `"x\ny"` when an arg holds `|`). Controls hand their value on as `arg + ":" + value` (just the value when the row's arg is empty).
+
+## The map (`TKMap`)
+
+Describe it with a `TKMapSpec` (the map square in world units, a base image, tile layers per zoom level with `%C` / `%R` in the path, regions with rings, labels and tint masks, pins with letters, colours, links and groups, toggles, a legend) and draw it from your `Custom()` with `TKMap.Place(v, parent, spec, w, h)`. Drag with the left or middle button, scroll to zoom on the cursor, click a region to select it or a pin to open its page. A new view redraws the page through the spec's link (`%D` region, `%Z` zoom, `%M` toggle bits, `%X` / `%Y` the centre).
+
+## HUD pieces (`TKHud`)
+
+On the game's HUD layer, stacked at the top centre, in a TerminalKit palette:
+- `TKHud.Strip(id, width)`: a tracker you keep up while it matters: `Set(title, right, sub)`, `Target(pos)` (a direction track that follows V's facing, and the distance), `Warn(on)`, `Fraction(f)` (a draining bar), `Show()` / `Hide()`.
+- `TKHud.Toast(kicker, title, line, highlight, text, items, secs, bad)`: a card for a few seconds.
+
+## Data
+
+- `TKClock.Now()` (game seconds) and `TKClock.Left(secs)` ("2h 05m").
+- `TKSheet`: add lines, `Show(p, col, desc, page, per, sortAction, pageAction, arg)`.
+- `TKLog.Add(tag, text)`: a session log the Tools' console shows and saves.
+
+## Pieces
+
+`TKPage` (page model, row kinds, `TKContent`, `TKCustom`, `TKFrame`), `TKView` (renderer: scrolling, history, overlay for tooltips, dialogs and lists, live rows, sliders, text boxes), `TKRows` / `TKTables` / `TKTiles` / `TKControls` (components), `TKPopup` (the frame), `TKMap`, `TKHud`, `TKData`, `TKTheme` (palettes by role: `hud` follows the game's colours, plus kiroshi, arasaka, militech, netwatch, mono), `TKScale` (layout numbers and texts by key, from a `TKScaleSource` you can plug in with `TKScale.Use`), `TKInk` (widget builders), `TKButton`.
+
+Add a row kind: a builder in `TKPage`, a case in `TKView.Draw`, a draw function.
 
 ## Conventions
 
-- The canvas is 4K-sized and shrunk to the screen: 3000 × 1500 for a full-screen frame, with a 2300-wide page. Type sizes below 24 get two points added so labels stay crisp at 1440p.
+- The canvas is 4K-sized and shrunk to the screen: 3000 x 1500 for the frame, a 2300-wide page.
 - Ink blends premultiplied in linear light: colours brighter than white bloom, so `TKTheme.C` caps at white.
-- Only unbind a style binding that exists; `Paint` handles that (unbinding on a fresh widget crashed the game).
+- Only unbind a style binding that exists; `TKTheme.Paint` handles that (unbinding on a fresh widget crashed the game).
+- The right mouse button is also the popup's close action; `TKPopup` keeps its release for going back.

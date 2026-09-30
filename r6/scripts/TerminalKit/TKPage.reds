@@ -40,6 +40,13 @@ public abstract class TKKind {
   public static func Ticker() -> Int32 = 26
   public static func Stat() -> Int32 = 27
   public static func Tile() -> Int32 = 28
+  public static func Dropdown() -> Int32 = 29
+  public static func Check() -> Int32 = 30
+  public static func Search() -> Int32 = 31
+  public static func SortHead() -> Int32 = 32
+  public static func Pager() -> Int32 = 33
+  public static func Live() -> Int32 = 34
+  public static func Message() -> Int32 = 35
 }
 
 public class TKRow extends IScriptable {
@@ -112,6 +119,11 @@ public class TKPage extends IScriptable {
   public let fieldKeys: array<String>;
   public let fieldValues: array<String>;
   public let content: ref<TKContent>;   // who fills and acts on it (set by the view)
+  // an action asking for a yes first (Confirm): the view shows the dialog after the redraw
+  public let confirmText: String;
+  public let confirmYes: String;
+  public let confirmAction: String;
+  public let confirmArg: String;
 
   public func Request(page: String, arg: String) -> Void {
     if IsDefined(this.content) {
@@ -297,6 +309,63 @@ public class TKPage extends IScriptable {
       this.wheelReserved = true;
     }
   }
+  // ---- controls ----
+  // A drop-down: the current choice on a button; clicking lists `labels` ("A|B|C");
+  // picking one calls Act(action, arg + ":" + its value from `values` ("a|b|c"))
+  public func Dropdown(text: String, value: String, current: String, labels: String, values: String, action: String, arg: String) -> Void {
+    let r = this.Push(TKKind.Dropdown(), text, value, "", labels, action, arg, 0.0, true);
+    r.labels = TKStr.Split(labels, "|");
+    r.args = TKStr.Split(values, "|");
+    r.extra = current;
+  }
+  // A check box: clicking calls Act(action, arg + ":1") to tick it, ":0" to clear it
+  public func Check(text: String, value: String, on: Bool, action: String, arg: String) -> Void {
+    this.Push(TKKind.Check(), text, value, "", "", action, arg, 0.0, on);
+  }
+  // A search box with its button: pressing it (or any button on the page) hands
+  // the text to Act as GetField(field); the button calls Act(action, text)
+  public func Search(label: String, value: String, field: String, action: String) -> Void {
+    let r = this.PushAct(TKKind.Search(), label, value, "", "SEARCH", action, "", 0.0, true);
+    r.extra = field;
+  }
+  // A table head whose columns sort: cells and cols as Ledger; the sorted column
+  // `col` shows ^ (ascending) or v (descending); clicking column k calls
+  // Act(action, arg + ":" + k). TKSheet builds these for you.
+  public func SortHead(cells: String, cols: String, col: Int32, desc: Bool, action: String, arg: String) -> Void {
+    this.Push(TKKind.SortHead(), cells, cols, "", "", action, arg, Cast<Float>(col), desc);
+  }
+  // PREV / PAGE x OF y / NEXT: calls Act(action, arg + ":" + the new page), pages from 0
+  public func Pager(page: Int32, pages: Int32, action: String, arg: String) -> Void {
+    let prefix = StrLen(arg) > 0 ? arg + ":" : "";
+    let r = this.PushAct(TKKind.Pager(), "PAGE " + IntToString(page + 1) + " OF " + IntToString(Max(1, pages)), "", "",
+      (page > 0 ? "" : "!") + "PREV|" + (page < pages - 1 ? "" : "!") + "NEXT", action + "|" + action,
+      prefix + IntToString(Max(0, page - 1)) + "\n" + prefix + IntToString(Min(Max(0, pages - 1), page + 1)), 0.0, true);
+    r.fraction = Cast<Float>(page);
+  }
+  // A countdown that ticks on game time without redrawing: the time left to
+  // `endsAt` (TKClock.Now() seconds) and a bar of what's left of `total`. When it
+  // runs out it calls Act(action, arg) once (none when `action` is empty).
+  public func Countdown(text: String, value: String, endsAt: Float, total: Float, action: String, arg: String) -> Void {
+    this.Push(TKKind.Live(), text, value, "", FloatToString(endsAt - total) + "|" + FloatToString(endsAt) + "|0", action, arg, 0.0, true);
+  }
+  // A progress bar from `start` to `end` (game seconds) with its percentage, live
+  public func Progress(text: String, value: String, start: Float, end: Float, action: String, arg: String) -> Void {
+    this.Push(TKKind.Live(), text, value, "", FloatToString(start) + "|" + FloatToString(end) + "|1", action, arg, 0.0, true);
+  }
+  // A message in a thread: `who` and `time` over the text, V's own (`mine`) on the right
+  public func Message(who: String, time: String, text: String, mine: Bool, color: String) -> Void {
+    this.Push(TKKind.Message(), text, who, color, time, "", "", 0.0, mine);
+  }
+  // From Act: ask first. The page redraws, then a dialog asks `text`; `yes`
+  // (the button) runs Act(action, arg). A button label starting with "?" does
+  // the same by itself ("?SELL ALL" asks "SELL ALL?").
+  public func Confirm(text: String, yes: String, action: String, arg: String) -> Void {
+    this.confirmText = text;
+    this.confirmYes = yes;
+    this.confirmAction = action;
+    this.confirmArg = arg;
+  }
+
   // a tooltip on the row just added: shown when the cursor rests on its title
   public func SetTip(tip: String) -> Void {
     if ArraySize(this.rows) > 0 {
