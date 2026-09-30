@@ -265,7 +265,10 @@ public class TKView extends IScriptable {
     box.Reparent(this.m_tipLayer);
     let fill = TKInk.Rect(box, 0.0, 0.0, w, h);
     fill.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
-    fill.SetOpacity(0.92);
+    fill.SetOpacity(1.0);   // solid: the row under it mustn't show through
+    let fill2 = TKInk.Rect(box, 0.0, 0.0, w, h);   // doubled: the HUD blend let one layer show the row
+    fill2.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+    box.SetOpacity(1.0);
     this.Frame(box, w, h, 2.0, "value", 0.9);
     let t = this.Text(box, this.m_tips[i], font, n"Regular", "text", 0.0);
     t.SetLetterCase(textLetterCase.OriginalCase);
