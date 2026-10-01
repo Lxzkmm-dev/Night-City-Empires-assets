@@ -438,6 +438,13 @@ public class TKPage extends IScriptable {
       this.rows[ArraySize(this.rows) - 1].image = kind + "|" + atlas + "|" + part + "|" + faceAtlas + "|" + facePart;
     }
   }
+  // A line drawing (white lines on transparent, an atlas part) in the File's frame
+  // instead, drawn in the card's colour: a machine's wireframe, a schematic
+  public func SetPortraitWire(atlas: String, part: String) -> Void {
+    if ArraySize(this.rows) > 0 {
+      this.rows[ArraySize(this.rows) - 1].image = "w|" + atlas + "|" + part;
+    }
+  }
 }
 
 // What the kit needs from the mod: pages and actions, custom rows, and a word

@@ -147,6 +147,29 @@ public abstract class TKCards {
     face.Reparent(box);
   }
 
+  // A line drawing from an atlas (white lines on transparent): fitted square in the
+  // frame and drawn in the card's colour, a faint glow behind it
+  public static func Wireframe(v: ref<TKView>, box: ref<inkCanvas>, w: Float, h: Float, atlas: String, part: String, color: String) -> Void {
+    if StrLen(atlas) == 0 || StrLen(part) == 0 {
+      return;
+    }
+    let size = MinF(w, h);
+    let pass = 0;
+    while pass < 2 {
+      let img: ref<inkImage> = new inkImage();
+      img.SetAtlasResource(ResRef.FromString(atlas));
+      img.SetTexturePart(StringToName(part));
+      img.SetAnchor(inkEAnchor.Centered);
+      img.SetAnchorPoint(Vector2(0.5, 0.5));
+      img.SetSize(pass == 0 ? Vector2(size * 1.03, size * 1.03) : Vector2(size, size));
+      img.SetOpacity(pass == 0 ? 0.3 : 1.0);
+      img.Reparent(box);
+      v.Paint(img, "value");
+      v.Tone(img, color);
+      pass += 1;
+    }
+  }
+
   // the strip along the bottom
   private static func NoImage(v: ref<TKView>, box: ref<inkCanvas>, w: Float, h: Float) -> Void {
     let band = TKInk.Rect(box, 0.0, h - 30.0, w, 30.0);
@@ -234,6 +257,8 @@ public abstract class TKCards {
     let kind = TKStr.Part(r.image, "|", 0);
     if Equals(kind, "m") || Equals(kind, "f") {
       TKCards.Portrait(v, face, pw, ph, Equals(kind, "f"), TKStr.Part(r.image, "|", 1), TKStr.Part(r.image, "|", 2), color, TKStr.Part(r.image, "|", 3), TKStr.Part(r.image, "|", 4));
+    } else if Equals(kind, "w") {
+      TKCards.Wireframe(v, face, pw, ph, TKStr.Part(r.image, "|", 1), TKStr.Part(r.image, "|", 2), color);
     } else {
       let ini = v.Text(face, TKCards.Initials(name), 64, n"Semi-Bold", "value", 0.0);
       ini.SetAnchor(inkEAnchor.Centered);
