@@ -431,6 +431,13 @@ public class TKPage extends IScriptable {
       this.rows[ArraySize(this.rows) - 1].image = kind + "|" + atlas + "|" + part;
     }
   }
+  // The same with a silhouette image of the mod's own (an atlas part, a white
+  // coverage mask) drawn instead of the bust; the emblem stays behind it
+  public func SetPortraitImage(kind: String, faceAtlas: String, facePart: String, atlas: String, part: String) -> Void {
+    if ArraySize(this.rows) > 0 {
+      this.rows[ArraySize(this.rows) - 1].image = kind + "|" + atlas + "|" + part + "|" + faceAtlas + "|" + facePart;
+    }
+  }
 }
 
 // What the kit needs from the mod: pages and actions, custom rows, and a word

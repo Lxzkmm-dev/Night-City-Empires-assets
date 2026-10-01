@@ -62,7 +62,7 @@ public abstract class TKCards {
   // No photo on file: an emblem faint behind, a bust silhouette with a thin rim
   // in the card's colour (longer hair for `female`), a "NO IMAGE" strip along
   // the bottom. Drawn in 3 px slices so it works on any size.
-  public static func Portrait(v: ref<TKView>, box: ref<inkCanvas>, w: Float, h: Float, female: Bool, atlas: String, part: String, color: String) -> Void {
+  public static func Portrait(v: ref<TKView>, box: ref<inkCanvas>, w: Float, h: Float, female: Bool, atlas: String, part: String, color: String, opt faceAtlas: String, opt facePart: String) -> Void {
     if StrLen(atlas) > 0 && StrLen(part) > 0 {
       let size = MinF(w, h) * 0.86;
       let img: ref<inkImage> = new inkImage();
@@ -75,6 +75,12 @@ public abstract class TKCards {
       img.Reparent(box);
       v.Paint(img, "value");
       v.Tone(img, color);
+    }
+    // a silhouette image of the mod's own (an atlas part): drawn instead of the bust
+    if StrLen(faceAtlas) > 0 && StrLen(facePart) > 0 {
+      TKCards.FaceImage(v, box, w, h, faceAtlas, facePart, color);
+      TKCards.NoImage(v, box, w, h);
+      return;
     }
     // one plain bust for everyone (hair shapes read as a hood); a woman's is a
     // touch slimmer: a smaller head, narrower shoulders
@@ -118,7 +124,31 @@ public abstract class TKCards {
       }
       pass += 1;
     }
-    // the strip along the bottom
+    TKCards.NoImage(v, box, w, h);
+  }
+
+  // A white coverage mask from an atlas, filling the frame: a faint rim in the card's
+  // colour (the same image a touch larger behind), then the silhouette in near-black
+  private static func FaceImage(v: ref<TKView>, box: ref<inkCanvas>, w: Float, h: Float, atlas: String, part: String, color: String) -> Void {
+    let rim: ref<inkImage> = new inkImage();
+    rim.SetAtlasResource(ResRef.FromString(atlas));
+    rim.SetTexturePart(StringToName(part));
+    rim.SetSize(Vector2(w * 1.04, h * 1.04));
+    rim.SetMargin(inkMargin(-w * 0.02, -h * 0.02 + 2.0, 0.0, 0.0));
+    rim.SetOpacity(0.45);
+    rim.Reparent(box);
+    v.Paint(rim, "value");
+    v.Tone(rim, color);
+    let face: ref<inkImage> = new inkImage();
+    face.SetAtlasResource(ResRef.FromString(atlas));
+    face.SetTexturePart(StringToName(part));
+    face.SetSize(Vector2(w, h));
+    face.SetTintColor(new HDRColor(0.05, 0.06, 0.07, 1.0));
+    face.Reparent(box);
+  }
+
+  // the strip along the bottom
+  private static func NoImage(v: ref<TKView>, box: ref<inkCanvas>, w: Float, h: Float) -> Void {
     let band = TKInk.Rect(box, 0.0, h - 30.0, w, 30.0);
     band.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
     band.SetOpacity(0.8);
@@ -203,7 +233,7 @@ public abstract class TKCards {
     face.Reparent(card);
     let kind = TKStr.Part(r.image, "|", 0);
     if Equals(kind, "m") || Equals(kind, "f") {
-      TKCards.Portrait(v, face, pw, ph, Equals(kind, "f"), TKStr.Part(r.image, "|", 1), TKStr.Part(r.image, "|", 2), color);
+      TKCards.Portrait(v, face, pw, ph, Equals(kind, "f"), TKStr.Part(r.image, "|", 1), TKStr.Part(r.image, "|", 2), color, TKStr.Part(r.image, "|", 3), TKStr.Part(r.image, "|", 4));
     } else {
       let ini = v.Text(face, TKCards.Initials(name), 64, n"Semi-Bold", "value", 0.0);
       ini.SetAnchor(inkEAnchor.Centered);
