@@ -47,6 +47,13 @@ public class TKPopup extends InGamePopup {
   public func Name() -> String = "TERMINAL"                         // large, top left
   public func Status() -> String = ""                               // small, top right
   public func Footer() -> String = "[ESC] CLOSE    [RIGHT CLICK] BACK"
+  // the game's own key prompts in place of the footer text, "action|LABEL"
+  // (["back|BACK", "cancel|CLOSE"]): each shows the key or pad button the player
+  // has bound to that input action (empty: the Footer() text, as before)
+  public func Hints() -> array<String> {
+    let none: array<String>;
+    return none;
+  }
   public func BootText() -> String = "CONNECTING..."
   // several boot lines, shown one after another (empty: BootText alone, as before)
   public func BootLines() -> array<String> {
@@ -329,8 +336,11 @@ public class TKPopup extends InGamePopup {
     overlay.Reparent(viewport);
     this.m_view.SetTipLayer(overlay);
 
-    // footer
-    if StrLen(this.Footer()) > 0 {
+    // footer: the game's own key prompts when the frame lists them, else the text
+    let hints = this.Hints();
+    if ArraySize(hints) > 0 {
+      this.KeyHints(frame, hints);
+    } else if StrLen(this.Footer()) > 0 {
       let foot: ref<inkText> = TKInk.Line(frame, TKScale.T(this.Footer()), 26, n"Medium", n"MainColors.PanelBlue", 0.0);
       foot.SetAnchor(inkEAnchor.BottomLeft);
       foot.SetAnchorPoint(Vector2(0.0, 1.0));
@@ -377,6 +387,26 @@ public class TKPopup extends InGamePopup {
         this.m_view.Chrome(line, "value");
         ArrayPush(this.m_bootLines, line);
       }
+    }
+  }
+
+  // the game's button-hint bar (the one under the pause menu), bottom left
+  private func KeyHints(frame: ref<inkCompoundWidget>, hints: array<String>) -> Void {
+    let bar = this.SpawnFromExternal(frame, r"base\\gameplay\\gui\\common\\buttonhints.inkwidget", n"Root");
+    if !IsDefined(bar) {
+      return;
+    }
+    bar.SetAnchor(inkEAnchor.BottomLeft);
+    bar.SetAnchorPoint(Vector2(0.0, 1.0));
+    bar.SetMargin(inkMargin(70.0, 0.0, 0.0, 40.0));
+    ArrayPush(this.m_hideable, bar);
+    let ctrl = bar.GetController() as ButtonHints;
+    if !IsDefined(ctrl) {
+      return;
+    }
+    ctrl.SetInverted(true);
+    for pair in hints {
+      ctrl.AddButtonHint(StringToName(StrBeforeFirst(pair, "|")), TKScale.T(StrAfterFirst(pair, "|")));
     }
   }
 
