@@ -37,6 +37,18 @@ All optional; without them a frame looks as it always has.
 - **Style**: override `TKPopup.Style()` to return a `TKStyle`: `frame` (0 brackets, 1 notched corners, 2 armoured double border), `rivets`, `hazard` (stripe blocks in two corners), `scanlines` (overlay opacity), `headerPlates` (headings on a dark plate), `segmentedBars` (meters and stat bars in N cells), `openSound` / `closeSound` / `selectSound` / `denySound` (a disabled button pressed), `fontFamily` (an `.inkfontfamily` path used for every text and button while the frame is open) and `fontStyle` (one style for everything, for a family that lacks Regular / Medium / Semi-Bold).
 - **Its own numbers and texts**: `TKScale.Use(source)` is one slot shared by every mod. A frame that overrides `ScaleSource()` uses its own source while it is open; return `new TKScaleDefaults()` to keep the kit's numbers whatever another mod plugged in. With TerminalKit Tools, call `TKTools.UseFor(myHost)` before `TKTools.Request` / `Act` so each mod's tools use its own storage folder.
 - **Boot**: `BootLines()` shows several lines one after another in place of `BootText()`; `BootSeconds()` sets how long they stay.
+- **Key prompts**: override `Hints()` with `"action|LABEL"` pairs (`["back|CLOSE"]`) and the footer becomes the game's own button-hint bar, each prompt showing the key or pad button the player bound to that input action. Without it the footer is the `Footer()` text.
+
+## The game's own pieces (1.0)
+
+Read from or fed to the game the way the game itself does it, so they match what players already see. All safe to call before a save is loaded.
+
+- **`TKVersion`**: `Major()`, `Minor()`, `Text()` ("1.0") and `AtLeast(major, minor)`, so a mod can tell a player their TerminalKit is too old.
+- **`TKGame`**: `District()` (where V is, as the game names it; usually the sub-district), `MainDistrict()`, `DistrictRecord()`, `Money()` and `MoneyText(n)` ("12,500" plus the game's own E$ word), `Group(n)` ("12,500"), `Level()`, `StreetCred()`, `Clock()` ("21:07") and `Hour()`, `Imperial()`, `Distance(metres)` ("120 m", "1.4 km", or ft / mi when the player picked imperial units) and `DistanceTo(pos)`.
+- **`TKNotify`**: the game's messages. `Warning(text, secs, bad)` (the line near the top of the screen; `WarningOfType` takes one of the game's `SimpleMessageType` looks), `Onscreen(text, secs)` (the big centred line), `Side(title)` (the small side popup) and `Quest(header, text)` (the quest-update toast). Texts can be plain or `LocKey#` keys. `TKHud.Toast` stays the kit's own card.
+- **`TKPins`**: pins on the game's world map, minimap and in the world, kept by a name you pick: `Add(key, pos)` (the custom-waypoint look), `AddAs(key, pos, variant)`, `Move`, `Show(key, on)`, `Remove`, `RemoveAll(prefix)`, `Has`, `Position(key, out pos)`. The game doesn't save script pins, so add them again after a load. `TKHud.Strip(...).TargetPin(key)` points a strip at one.
+
+The game's own scripts (decompiled, for reading only) are the reference for these: every call above is one the game makes itself.
 
 ## Pages
 
@@ -64,6 +76,8 @@ On the game's HUD layer, stacked at the top centre, in a TerminalKit palette:
 - `TKHud.Strip(id, width)`: a tracker you keep up while it matters: `Set(title, right, sub)`, `Target(pos)` (a direction track that follows V's facing, and the distance), `Warn(on)`, `Fraction(f)` (a draining bar), `Show()` / `Hide()`.
 - `TKHud.Toast(kicker, title, line, highlight, text, items, secs, bad)`: a card for a few seconds.
 
+A strip's distance is in the player's chosen units (`TKGame.Distance`).
+
 ## Data
 
 - `TKClock.Now()` (game seconds) and `TKClock.Left(secs)` ("2h 05m").
@@ -72,7 +86,7 @@ On the game's HUD layer, stacked at the top centre, in a TerminalKit palette:
 
 ## Pieces
 
-`TKPage` (page model, row kinds, `TKContent`, `TKCustom`, `TKFrame`), `TKView` (renderer: scrolling, history, overlay for tooltips, dialogs and lists, live rows, sliders, text boxes), `TKRows` / `TKTables` / `TKTiles` / `TKControls` (components), `TKPopup` (the frame), `TKMap`, `TKHud`, `TKData`, `TKTheme` (palettes by role: `hud` follows the game's colours, plus kiroshi, arasaka, militech, netwatch, mono), `TKScale` (layout numbers and texts by key, from a `TKScaleSource` you can plug in with `TKScale.Use`), `TKInk` (widget builders), `TKButton`.
+`TKGame` (the version and the game's data), `TKNotify`, `TKPins`, `TKPage` (page model, row kinds, `TKContent`, `TKCustom`, `TKFrame`), `TKView` (renderer: scrolling, history, overlay for tooltips, dialogs and lists, live rows, sliders, text boxes), `TKRows` / `TKTables` / `TKTiles` / `TKControls` (components), `TKPopup` (the frame), `TKMap`, `TKHud`, `TKData`, `TKTheme` (palettes by role: `hud` follows the game's colours, plus kiroshi, arasaka, militech, netwatch, mono), `TKScale` (layout numbers and texts by key, from a `TKScaleSource` you can plug in with `TKScale.Use`), `TKInk` (widget builders), `TKButton`.
 
 Add a row kind: a builder in `TKPage`, a case in `TKView.Draw`, a draw function.
 

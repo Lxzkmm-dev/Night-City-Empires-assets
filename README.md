@@ -12,6 +12,9 @@ A redscript framework for full in-game terminal UIs: native, no CET, built by de
 - **A pan-and-zoom map** (`TKMap`): your images and tile layers, regions with outlines and tints, pins that open pages, toggles, a legend.
 - **HUD pieces** (`TKHud`): tracker strips with a direction track and distance, toast cards.
 - **Palettes** (the game's own colours, Kiroshi, Arasaka, Militech, NetWatch, mono) and a pluggable size scale for a live UI tuner.
+- **The game's own pieces** (1.0): its data worded the game's way (district, money, level, street cred, clock, distances in the player's units), its notifications, its key prompts and pins on its map.
+
+Version 1.0. Mods can check the installed kit with `TKVersion.AtLeast(1, 0)`.
 
 `r6/scripts/TerminalKit/README.md` documents it.
 
@@ -21,7 +24,7 @@ Developer pages for any TerminalKit terminal: a position logger, a route recorde
 
 ## Example (`examples/HelloTerminal`)
 
-A complete little mod: K opens a terminal with a home page, the controls, a map and the dev tools. Copy it to start your own.
+A complete little mod: K opens a terminal with a home page, the controls, the game's own data, messages and pins, a map and the dev tools. Copy it to start your own.
 
 Requires redscript, Codeware and RedFunctions (and Input Loader for the example's key).
 

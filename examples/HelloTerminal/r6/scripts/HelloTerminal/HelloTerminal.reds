@@ -1,7 +1,7 @@
 // =============================================================================
 // HELLO TERMINAL - a TerminalKit example mod
-// Press K (Input Loader) to open a terminal with four tabs: a home page, the
-// controls, a map and the dev tools. Copy it as the start of your own mod.
+// Press K (Input Loader) to open a terminal with five tabs: a home page, the
+// controls, the game's own data, messages and pins, a map and the dev tools. Copy it as the start of your own mod.
 // Needs TerminalKit (and TerminalKit Tools for the TOOLS tab), Codeware,
 // RedFunctions and Input Loader.
 // =============================================================================
@@ -13,11 +13,13 @@ import TerminalKit.Tools.*
 // ---- the frame: TerminalKit's ready-made one, named and given our pages ----
 public class HelloTerminal extends TKPopup {
   public func Content() -> ref<TKContent> = new HelloContent()
-  public func Tabs() -> array<String> = ["HOME|home", "CONTROLS|controls", "MAP|map", "TOOLS|tk_tools"]
+  public func Tabs() -> array<String> = ["HOME|home", "CONTROLS|controls", "GAME|game", "MAP|map", "TOOLS|tk_tools"]
   public func Brand() -> String = "TERMINAL KIT"
   public func Name() -> String = "HELLO TERMINAL"
   public func Status() -> String = "EXAMPLE // K TO CLOSE"
   public func StartPage() -> String = "home"
+  // the game's own key prompt in the footer (the pause menu's "back" is its close)
+  public func Hints() -> array<String> = ["back|CLOSE"]
 }
 
 // ---- what the pages remember between clicks (not saved with the game) ----
@@ -42,6 +44,7 @@ public class HelloContent extends TKContent {
     }
     switch page {
       case "controls": this.Controls(p); break;
+      case "game": this.Game(p); break;
       case "map": this.MapPage(p, arg); break;
       default: this.Home(p); break;
     }
@@ -89,6 +92,22 @@ public class HelloContent extends TKContent {
     p.Heading("MESSAGES");
     p.Message("ROGUE", "21:04", "Got a job for you. Quiet one. Don't make me regret it.", false, "");
     p.Message("V", "21:06", "Send the details.", true, "");
+  }
+
+  // the game's own data and messages (TKGame, TKNotify, TKPins)
+  private func Game(p: ref<TKPage>) -> Void {
+    p.SetTitle("GAME", "What the game itself says, and its own messages and pins");
+    p.Pair("DISTRICT", TKGame.District() + (StrLen(TKGame.MainDistrict()) > 0 ? ", " + TKGame.MainDistrict() : ""), "");
+    p.Pair("BALANCE", TKGame.MoneyText(TKGame.Money()), "");
+    p.Pair("LEVEL / STREET CRED", IntToString(TKGame.Level()) + " / " + IntToString(TKGame.StreetCred()), "");
+    p.Pair("TIME", TKGame.Clock(), "");
+    p.Pair("TERMINALKIT", TKVersion.Text(), "");
+    p.Heading("THE GAME'S MESSAGES");
+    p.Buttons("", "", "", "WARNING|ONSCREEN|SIDE|QUEST", "hello_warn|hello_onscreen|hello_side|hello_quest", "|||");
+    p.Heading("A PIN ON THE GAME'S MAP");
+    let pinned = TKPins.Has("hello_here");
+    p.Item(pinned ? "PINNED" : "NO PIN", pinned ? "Open the world map to see it" : "Drops a pin where V stands", "",
+      pinned ? "REMOVE" : "PIN HERE", pinned ? "hello_unpin" : "hello_pin", "", true);
   }
 
   // the map row is drawn in Custom below
@@ -143,6 +162,17 @@ public class HelloContent extends TKContent {
         st.sortCol = col;
         break;
       case "hello_page": st.sheetPage = StringToInt(arg, 0); break;
+      case "hello_warn": TKNotify.Warning("Hello from TerminalKit", 4.0, false); break;
+      case "hello_onscreen": TKNotify.Onscreen("Hello, Night City", 3.0); break;
+      case "hello_side": TKNotify.Side("Hello from TerminalKit"); break;
+      case "hello_quest": TKNotify.Quest("HELLO TERMINAL", "A quest-style toast from TerminalKit"); break;
+      case "hello_pin":
+        let player = GetPlayer(GetGameInstance());
+        if IsDefined(player) {
+          TKPins.Add("hello_here", player.GetWorldPosition());
+        }
+        break;
+      case "hello_unpin": TKPins.Remove("hello_here"); break;
     }
   }
 }
