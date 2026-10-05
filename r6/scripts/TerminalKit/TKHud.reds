@@ -66,6 +66,15 @@ public class TKHudStrip extends IScriptable {
     this.hasTarget = true;
     this.showDistance = !noDistance;
   }
+  // the same toward a TKPins pin (no pin by that name: no target)
+  public func TargetPin(key: String, opt noDistance: Bool) -> Void {
+    let pos: Vector4;
+    if TKPins.Position(key, pos) {
+      this.Target(pos, noDistance);
+    } else {
+      this.NoTarget();
+    }
+  }
   public func NoTarget() -> Void { this.hasTarget = false; }
   public func Warn(on: Bool) -> Void { this.warn = on; }
   public func Fraction(f: Float) -> Void { this.fraction = f; }
@@ -429,7 +438,7 @@ public class TKHudSystem extends ScriptableSystem {
         let pos = p.GetWorldPosition();
         let dx = pos.X - s.target.X;
         let dy = pos.Y - s.target.Y;
-        s.distText.SetText(IntToString(RoundF(SqrtF(dx * dx + dy * dy))) + " m");
+        s.distText.SetText(TKGame.Distance(SqrtF(dx * dx + dy * dy)));   // the player's own units
       }
     }
     s.bar.SetVisible(s.fraction >= 0.0);
