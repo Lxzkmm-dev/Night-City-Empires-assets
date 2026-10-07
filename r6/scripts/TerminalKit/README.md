@@ -59,7 +59,11 @@ public func Layout() -> array<String> = [
   "ribbon|top|150", "deck|bottom|140|fixed", "rack|left|560", "panel|right|680", "stage|fill|0|fixed"]
 ```
 
-Each spec is `"name|side|size|flags"`. `top`, `bottom`, `left` and `right` take `size` from what is left, in the order listed, and `fill` takes the rest. A pane scrolls on its own unless it is flagged `fixed`.
+Each spec is `"name|side|size|flags|title"`. `top`, `bottom`, `left` and `right` take `size` from what is left, in the order listed, and `fill` takes the rest. Flags are comma separated:
+- `fixed`: the pane never scrolls.
+- `cut`: chamfered corners. Every pane gets them when `TKStyle.cutCorner` is set, and `square` opts a pane out.
+
+A title puts a header plate across the top of the pane, for example `"rack|left|560|cut|BAYS"`.
 
 The provider still answers one page. `p.Region("rack")` sends the rows after it to that pane, and rows before the first `Region` go to the first pane. In `Act`, `p.Refresh("stage")` (once per pane) redraws only those panes, so the others keep their scroll position. Without it every pane redraws, and going to another page always redraws them all. The page's message shows bottom right. `Tabs()` isn't drawn with a layout, so put a `Links` row in a pane instead. `Regions()` gives the panes while the frame is open, and `Regions().Find("stage")` gives one pane's view.
 

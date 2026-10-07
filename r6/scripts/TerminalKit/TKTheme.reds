@@ -223,6 +223,7 @@ public class TKStyle extends IScriptable {
   public let denySound: CName;        // a disabled button pressed (n"" = none)
   public let fontFamily: String;      // an .inkfontfamily path for every text and button in the frame ("" = the game's UI font)
   public let fontStyle: CName;        // one font style for everything, for a family without Regular / Medium / Semi-Bold (n"" = the kit's weights)
+  public let cutCorner: Float;        // a layout's panes get chamfered corners this big (0 = square; a pane's "cut" flag asks for them alone)
 }
 
 // Where layout numbers and text replacements come from (a tuner, a file);

@@ -13,8 +13,10 @@
 //
 // A spec is "name|side|size|flags": side top, bottom, left or right takes `size`
 // (a height or a width) from what is left, in the order listed; "fill" takes
-// what remains. Flags: "fixed" (the region never scrolls: a Custom row in it
-// can fill it, TKView.Width() x Height()).
+// what remains. Flags (comma separated): "fixed" (the region never scrolls: a
+// Custom row in it can fill it, TKView.Width() x Height()), "cut" (chamfered
+// corners; every pane has them when TKStyle.cutCorner is set, "square" opts
+// out). A fifth part is a title on a header plate: "rack|left|560||BAYS".
 // =============================================================================
 module TerminalKit
 
@@ -109,14 +111,13 @@ public class TKRegions extends IScriptable {
     i = 0;
     while i < ArraySize(specs) {
       let name = TKStr.Part(specs[i], "|", 0);
-      let fixed = StrContains(TKStr.Part(specs[i], "|", 3), "fixed");
       let v = i == 0 && IsDefined(first) ? first : new TKView();
       if i > 0 || !IsDefined(first) {
         v.SetFrame(frame);
         v.SetContent(provider);
         v.SetStyle(style);
       }
-      this.Pane(parent, v, name, rects[i], fixed);
+      this.Pane(parent, v, specs[i], rects[i], style);
       ArrayPush(this.m_names, name);
       ArrayPush(this.m_views, v);
       ArrayPush(this.m_sides, TKStr.Part(specs[i], "|", 1));
@@ -133,25 +134,43 @@ public class TKRegions extends IScriptable {
     }
   }
 
-  // one region: a dark pane with a thin frame, its rows in a clipped area
-  // (with a scroll bar unless fixed)
-  private func Pane(parent: ref<inkCompoundWidget>, v: ref<TKView>, name: String, r: Vector4, fixed: Bool) -> Void {
+  // one region: a dark pane with a thin frame (its corners cut when the style or
+  // the spec asks), a header plate when the spec names a title, its rows in a
+  // clipped area (with a scroll bar unless fixed)
+  private func Pane(parent: ref<inkCompoundWidget>, v: ref<TKView>, spec: String, r: Vector4, style: ref<TKStyle>) -> Void {
+    let name = TKStr.Part(spec, "|", 0);
+    let flags = TKStr.Part(spec, "|", 3);
+    let title = TKStr.Part(spec, "|", 4);
+    let fixed = StrContains(flags, "fixed");
+    let cut = 0.0;
+    if !StrContains(flags, "square") {
+      cut = IsDefined(style) && style.cutCorner > 0.0 ? style.cutCorner : (StrContains(flags, "cut") ? 24.0 : 0.0);
+    }
+    cut = MinF(cut, MinF(r.Z, r.W) / 3.0);
     let box: ref<inkCanvas> = new inkCanvas();
     box.SetName(StringToName("region_" + name));
     box.SetSize(Vector2(r.Z, r.W));
     box.SetMargin(inkMargin(r.X, r.Y, 0.0, 0.0));
     box.Reparent(parent);
-    let fill = TKInk.Rect(box, 0.0, 0.0, r.Z, r.W);
-    fill.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
-    fill.SetOpacity(TKScale.F("region.fill", 0.45));
-    let edges = [Vector4(0.0, 0.0, r.Z, 2.0), Vector4(0.0, r.W - 2.0, r.Z, 2.0), Vector4(0.0, 0.0, 2.0, r.W), Vector4(r.Z - 2.0, 0.0, 2.0, r.W)];
-    for e in edges {
-      v.Chrome(TKInk.Rect(box, e.X, e.Y, e.Z, e.W), "rule");
-    }
+    this.Shell(v, box, r.Z, r.W, cut);
     let pad = TKScale.F("region.pad", 18.0);
+    let head = 0.0;
+    if StrLen(title) > 0 {
+      // the header plate: a dark plate across the top, an accent bar at its left
+      head = TKScale.F("region.head", 58.0);
+      let plate = TKInk.Rect(box, pad, pad, r.Z - pad * 2.0 - cut * 0.5, head);
+      plate.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+      plate.SetOpacity(0.8);
+      v.Chrome(TKInk.Rect(box, pad, pad, 8.0, head), "accent");
+      let t = TKInk.Plain(box, TKScale.T(title), TKScale.I("region.title", 30), n"Semi-Bold", 0.0);
+      t.SetVAlign(inkEVerticalAlign.Top);
+      t.SetMargin(inkMargin(pad + 26.0, pad + (head - Cast<Float>(TKScale.I("region.title", 30))) / 2.0 - 2.0, 0.0, 0.0));
+      v.Chrome(t, "title");
+      head += 10.0;
+    }
     let barW = fixed ? 0.0 : 18.0;
     let innerW = MaxF(10.0, r.Z - pad * 2.0 - barW);
-    let innerH = MaxF(10.0, r.W - pad * 2.0);
+    let innerH = MaxF(10.0, r.W - pad * 2.0 - head);
     let clip: ref<inkScrollArea> = new inkScrollArea();
     clip.SetAnchor(inkEAnchor.TopLeft);
     clip.SetAnchorPoint(Vector2(0.0, 0.0));
@@ -159,7 +178,7 @@ public class TKRegions extends IScriptable {
     clip.SetConstrainContentPosition(false);
     clip.SetUseInternalMask(true);
     clip.SetSize(Vector2(innerW, innerH));
-    clip.SetMargin(inkMargin(pad, pad, 0.0, 0.0));
+    clip.SetMargin(inkMargin(pad, pad + head, 0.0, 0.0));
     clip.Reparent(box);
     let content: ref<inkVerticalPanel> = new inkVerticalPanel();
     content.SetAnchor(inkEAnchor.TopLeft);
@@ -168,10 +187,10 @@ public class TKRegions extends IScriptable {
     let track: ref<inkRectangle>;
     let thumb: ref<inkRectangle>;
     if !fixed {
-      track = TKInk.Rect(box, r.Z - pad - 4.0, pad, 4.0, innerH);
+      track = TKInk.Rect(box, r.Z - pad - 4.0, pad + head, 4.0, innerH);
       track.SetOpacity(0.35);
       v.Chrome(track, "rule");
-      thumb = TKInk.Rect(box, r.Z - pad - 4.0, pad, 4.0, 40.0);
+      thumb = TKInk.Rect(box, r.Z - pad - 4.0, pad + head, 4.0, 40.0);
       v.Chrome(thumb, "value");
     }
     // rows are drawn 40 narrower than the width they're given (RowWidth)
@@ -179,6 +198,42 @@ public class TKRegions extends IScriptable {
     v.BindScroll(clip, innerH, track, thumb);
   }
 
+  // the pane's dark fill and thin frame; with `cut` > 0 the top-right and
+  // bottom-left corners are chamfered (the fill steps in 3 px slices there)
+  private func Shell(v: ref<TKView>, box: ref<inkCanvas>, w: Float, h: Float, cut: Float) -> Void {
+    let opacity = TKScale.F("region.fill", 0.45);
+    if cut <= 0.0 {
+      let fill = TKInk.Rect(box, 0.0, 0.0, w, h);
+      fill.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+      fill.SetOpacity(opacity);
+      let edges = [Vector4(0.0, 0.0, w, 2.0), Vector4(0.0, h - 2.0, w, 2.0), Vector4(0.0, 0.0, 2.0, h), Vector4(w - 2.0, 0.0, 2.0, h)];
+      for e in edges {
+        v.Chrome(TKInk.Rect(box, e.X, e.Y, e.Z, e.W), "rule");
+      }
+      return;
+    }
+    let mid = TKInk.Rect(box, 0.0, cut, w, h - cut * 2.0);
+    mid.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+    mid.SetOpacity(opacity);
+    let y = 0.0;
+    while y < cut {
+      let s = MinF(3.0, cut - y);
+      let top = TKInk.Rect(box, 0.0, y, w - (cut - y), s);           // the top-right corner cut away
+      top.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+      top.SetOpacity(opacity);
+      let bottom = TKInk.Rect(box, cut - y - s, h - cut + y, w - (cut - y - s), s);   // the bottom-left one
+      bottom.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+      bottom.SetOpacity(opacity);
+      y += s;
+    }
+    v.Chrome(TKInk.Rect(box, 0.0, 0.0, w - cut, 2.0), "rule");          // top
+    v.Chrome(TKInk.Rect(box, w - 2.0, cut, 2.0, h - cut), "rule");      // right
+    v.Chrome(TKInk.Rect(box, cut, h - 2.0, w - cut, 2.0), "rule");      // bottom
+    v.Chrome(TKInk.Rect(box, 0.0, 0.0, 2.0, h - cut), "rule");          // left
+    let color = TKTheme.Color(v.Theme(), "rule");
+    TKInk.Seg(box, Vector2(w - cut, 1.0), Vector2(w - 1.0, cut), 2.0, color, 1.0);
+    TKInk.Seg(box, Vector2(1.0, h - cut), Vector2(cut, h - 1.0), 2.0, color, 1.0);
+  }
   // ---------------------------------------------------------------------------
   // Pages and actions
   // ---------------------------------------------------------------------------
