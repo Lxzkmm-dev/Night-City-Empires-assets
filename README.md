@@ -14,7 +14,7 @@ A redscript framework for full in-game terminal UIs: native, no CET, built by de
 - **Palettes** (the game's own colours, Kiroshi, Arasaka, Militech, NetWatch, mono) and a pluggable size scale for a live UI tuner.
 - **The game's own pieces** (1.0): its data worded the game's way (district, money, level, street cred, clock, distances in the player's units), its notifications, its key prompts and pins on its map.
 
-Version 1.0. Mods can check the installed kit with `TKVersion.AtLeast(1, 0)`.
+Version 1.1, which adds console layouts: panes, overlays, keycaps, console rows, map clicks and controller navigation. Mods can check the installed kit with `TKVersion.AtLeast(1, 1)`.
 
 `r6/scripts/TerminalKit/README.md` documents it.
 

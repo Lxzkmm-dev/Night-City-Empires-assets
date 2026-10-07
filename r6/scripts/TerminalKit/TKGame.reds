@@ -14,8 +14,8 @@ module TerminalKit
 
 public abstract class TKVersion {
   public static func Major() -> Int32 = 1
-  public static func Minor() -> Int32 = 0
-  public static func Text() -> String = "1.0"
+  public static func Minor() -> Int32 = 1
+  public static func Text() -> String = "1.1"
 
   // true when the installed kit is `major.minor` or newer
   public static func AtLeast(major: Int32, minor: Int32) -> Bool {
