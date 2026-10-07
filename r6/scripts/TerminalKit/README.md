@@ -50,6 +50,21 @@ Read from or fed to the game the way the game itself does it, so they match what
 
 The game's own scripts (decompiled, for reading only) are the reference for these: every call above is one the game makes itself.
 
+### Regions: one screen in several panes
+
+Override `Layout()` to get panes instead of the sidebar and the one scrolling page, such as a ribbon, a rack, a stage, a panel and a deck:
+
+```
+public func Layout() -> array<String> = [
+  "ribbon|top|150", "deck|bottom|140|fixed", "rack|left|560", "panel|right|680", "stage|fill|0|fixed"]
+```
+
+Each spec is `"name|side|size|flags"`. `top`, `bottom`, `left` and `right` take `size` from what is left, in the order listed, and `fill` takes the rest. A pane scrolls on its own unless it is flagged `fixed`.
+
+The provider still answers one page. `p.Region("rack")` sends the rows after it to that pane, and rows before the first `Region` go to the first pane. In `Act`, `p.Refresh("stage")` (once per pane) redraws only those panes, so the others keep their scroll position. Without it every pane redraws, and going to another page always redraws them all. The page's message shows bottom right. `Tabs()` isn't drawn with a layout, so put a `Links` row in a pane instead. `Regions()` gives the panes while the frame is open, and `Regions().Find("stage")` gives one pane's view.
+
+**A pane as a canvas.** A `Custom` row in a `fixed` pane can fill it: draw `v.Width()` by `v.Height()`. Then call `v.Hit(widget, action, arg, tip)` on any widget you drew (a hardpoint tag, part of a schematic). The kit shows the tooltip, plays the select sound (or the deny sound when the optional last argument `off` is true) and runs `Act(action, arg)` on a click. Your provider hears the pointer in `HitHover(v, action, arg, over)` and the wheel in `HitWheel(v, action, arg, delta)`; return true from `HitWheel` when you used it. `Hit` works in any custom row, with or without regions.
+
 ## Pages
 
 A page is a title, a subtitle (hidden when empty), a status message and rows (`TKPage.reds`). Your `TKContent` fills it in `Request` and runs buttons in `Act` (set `p.GoTo`, `p.SetMessage`, `p.Rebuild()` or `p.skipRedraw`).

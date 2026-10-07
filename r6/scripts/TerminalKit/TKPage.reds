@@ -53,6 +53,7 @@ public abstract class TKKind {
   public static func File() -> Int32 = 39
   public static func Posting() -> Int32 = 40
   public static func Run() -> Int32 = 41
+  public static func Region() -> Int32 = 42
 }
 
 public class TKRow extends IScriptable {
@@ -121,6 +122,7 @@ public class TKPage extends IScriptable {
   public let section: String;      // sidebar tab to highlight ("" = the page itself)
   public let bare: Bool;           // hide the frame around the page (a page that needs the world in view)
   public let wheelReserved: Bool;  // a row on this page uses the mouse wheel itself: the page doesn't scroll
+  public let refresh: array<String>; // from Act, in a layout: only these regions redraw (none named: all of them)
   public let rows: array<ref<TKRow>>;
   // text boxes on the page (Input rows), handed to Act with every action
   public let fieldKeys: array<String>;
@@ -155,6 +157,12 @@ public class TKPage extends IScriptable {
   public func Rebuild() -> Void { this.rebuild = true; }
   public func SetSection(id: String) -> Void { this.section = id; }
   public func Bare() -> Void { this.bare = true; }
+  // In a frame with regions (TKPopup.Layout): the rows after this go in region
+  // `name` (rows before the first Region go in the first region)
+  public func Region(name: String) -> Void { this.Push(TKKind.Region(), name, "", "", "", "", "", 0.0, true); }
+  // From Act, in a frame with regions: redraw only region `name` (call it once
+  // per region); without it every region redraws. Ignored without regions.
+  public func Refresh(name: String) -> Void { ArrayPush(this.refresh, name); }
   public func GetField(key: String) -> String {
     let i = 0;
     while i < ArraySize(this.fieldKeys) {
@@ -343,7 +351,7 @@ public class TKPage extends IScriptable {
   // A row the content provider draws itself (TKContent.Custom): `tag` says what,
   // the rest is its data; `wheel` true when it takes the mouse wheel
   public func Custom(tag: String, a: String, b: String, c: String, d: String, wheel: Bool) -> Void {
-    this.Push(TKKind.Custom(), tag, a, b, c, d, "", 0.0, true);
+    this.Push(TKKind.Custom(), tag, a, b, c, d, "", wheel ? 1.0 : 0.0, true);
     if wheel {
       this.wheelReserved = true;
     }
@@ -456,6 +464,10 @@ public abstract class TKContent extends IScriptable {
   public func Custom(v: ref<TKView>, parent: ref<inkCompoundWidget>, p: ref<TKPage>, r: ref<TKRow>) -> ref<TKCustom> { return null; }
   // the layout changed under an open frame: rebuild it once the current callback is done
   public func Rebuild() -> Void {}
+  // a hit area a custom row registered (TKView.Hit) was pointed at (`over`) or left
+  public func HitHover(v: ref<TKView>, action: String, arg: String, over: Bool) -> Void {}
+  // the wheel over a hit area: true when the provider used it (the page then doesn't scroll)
+  public func HitWheel(v: ref<TKView>, action: String, arg: String, delta: Float) -> Bool = false
 }
 
 // a custom row's live object (a map, a chart...): told when its page is left

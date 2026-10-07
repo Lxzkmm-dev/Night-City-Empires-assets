@@ -25,6 +25,7 @@ import RedFunctions.*
 public class TKPopup extends InGamePopup {
   protected let m_player: wref<PlayerPuppet>;
   protected let m_view: ref<TKView>;
+  protected let m_regions: ref<TKRegions>;
   protected let m_frame: wref<inkCompoundWidget>;
   protected let m_boot: wref<inkText>;
   protected let m_bootProxy: ref<inkAnimProxy>;
@@ -65,6 +66,15 @@ public class TKPopup extends InGamePopup {
   // this frame's own layout numbers and texts while it is open (null: the shared
   // TKScale.Use slot; `new TKScaleDefaults()`: the kit's own, whatever other mods set)
   public func ScaleSource() -> ref<TKScaleSource> = null
+  // regions instead of the sidebar and the one page, "name|side|size|flags"
+  // (see TKRegions): rows go to a region after p.Region(name). Empty: the
+  // sidebar and the page, as before. Tabs() isn't drawn with a layout.
+  public func Layout() -> array<String> {
+    let none: array<String>;
+    return none;
+  }
+  // the layout's regions while the frame is open (null without a layout)
+  public func Regions() -> ref<TKRegions> = this.m_regions
   public func StartPage() -> String = "home"
   public func StartArg() -> String = ""
   public func CornerTab() -> String = ""                            // "LABEL|page": a button top right
@@ -116,7 +126,7 @@ public class TKPopup extends InGamePopup {
 
   public func View() -> ref<TKView> = this.m_view
   public func Player() -> wref<PlayerPuppet> = this.m_player
-  public func IsTyping() -> Bool = IsDefined(this.m_view) && this.m_view.IsTyping()
+  public func IsTyping() -> Bool = IsDefined(this.m_regions) ? this.m_regions.IsTyping() : IsDefined(this.m_view) && this.m_view.IsTyping()
 
   public func UseCursor() -> Bool = true
 
@@ -216,6 +226,7 @@ public class TKPopup extends InGamePopup {
     let frame = this.m_frame;
     let fw = this.FrameWidth();
     ArrayClear(this.m_hideable);
+    this.m_regions = null;
     this.m_view = new TKView();
     let adapter = new TKPopupFrame();
     adapter.popup = this;
@@ -272,7 +283,82 @@ public class TKPopup extends InGamePopup {
     this.m_view.Chrome(rule, "rule");
     ArrayPush(this.m_hideable, rule);
 
-    // body: tabs on the left, the page on the right
+    // body: the regions a layout lists, or tabs on the left and the page on the right
+    if ArraySize(this.Layout()) > 0 {
+      this.BuildRegions(frame);
+    } else {
+      this.BuildPage(frame);
+    }
+    // footer: the game's own key prompts when the frame lists them, else the text
+    let hints = this.Hints();
+    if ArraySize(hints) > 0 {
+      this.KeyHints(frame, hints);
+    } else if StrLen(this.Footer()) > 0 {
+      let foot: ref<inkText> = TKInk.Line(frame, TKScale.T(this.Footer()), 26, n"Medium", n"MainColors.PanelBlue", 0.0);
+      foot.SetAnchor(inkEAnchor.BottomLeft);
+      foot.SetAnchorPoint(Vector2(0.0, 1.0));
+      foot.SetMargin(inkMargin(70.0, 0.0, 0.0, 40.0));
+      foot.SetOpacity(0.7);
+      this.m_view.Chrome(foot, "text");
+      ArrayPush(this.m_hideable, foot);
+    }
+
+    // a static scanline overlay, over everything (it takes no clicks)
+    let lines = this.m_view.Style().scanlines;
+    if lines > 0.0 {
+      let scan: ref<inkCanvas> = new inkCanvas();
+      scan.SetSize(Vector2(fw, this.FrameHeight()));
+      scan.SetOpacity(MinF(lines, 0.6));
+      scan.Reparent(frame);
+      ArrayPush(this.m_hideable, scan);
+      let y = 0.0;
+      while y < this.FrameHeight() {
+        TKInk.Rect(scan, 0.0, y, fw, 3.0).SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
+        y += 9.0;
+      }
+    }
+
+    // boot text, shown over the frame while it flickers in: one line, or several
+    // that come up one after another
+    let boots = this.BootLines();
+    ArrayClear(this.m_bootLines);
+    this.m_boot = TKInk.Line(frame, ArraySize(boots) > 0 ? "" : TKScale.T(this.BootText()), 40, n"Medium", n"MainColors.Blue", 0.0);
+    this.m_boot.SetAnchor(inkEAnchor.BottomRight);
+    this.m_boot.SetAnchorPoint(Vector2(1.0, 1.0));
+    this.m_boot.SetMargin(inkMargin(0.0, 0.0, 70.0, 40.0));
+    this.m_view.Chrome(this.m_boot, "value");
+    if ArraySize(boots) > 0 {
+      let stack: ref<inkVerticalPanel> = new inkVerticalPanel();
+      stack.SetAnchor(inkEAnchor.BottomRight);
+      stack.SetAnchorPoint(Vector2(1.0, 1.0));
+      stack.SetMargin(inkMargin(0.0, 0.0, 70.0, 40.0));
+      stack.Reparent(frame);
+      for text in boots {
+        let line = TKInk.Line(stack, TKScale.T(text), 32, n"Medium", n"MainColors.Blue", 2.0);
+        line.SetHAlign(inkEHorizontalAlign.Right);
+        line.SetOpacity(0.0);
+        this.m_view.Chrome(line, "value");
+        ArrayPush(this.m_bootLines, line);
+      }
+    }
+  }
+
+  // the regions of Layout() under the top rule, the page's message bottom right
+  private func BuildRegions(frame: ref<inkCompoundWidget>) -> Void {
+    let message = TKInk.Line(frame, "", TKScale.I("message", 30), n"Medium", n"MainColors.Blue", 0.0);
+    message.SetAnchor(inkEAnchor.BottomRight);
+    message.SetAnchorPoint(Vector2(1.0, 1.0));
+    message.SetMargin(inkMargin(0.0, 0.0, 70.0, 40.0));
+    this.m_view.Chrome(message, "value");
+    this.m_regions = new TKRegions();
+    let top = TKScale.F("layout.top", 180.0);
+    let foot = TKScale.F("layout.foot", 110.0);
+    this.m_regions.Build(frame, 70.0, top, this.FrameWidth() - 140.0, this.FrameHeight() - top - foot, this.Layout(),
+      this.m_view, this.m_view.FrameOf(), this.Content(), this.Style(), message);
+  }
+
+  // the sidebar tabs and the one scrolling page (a frame without Layout())
+  private func BuildPage(frame: ref<inkCompoundWidget>) -> Void {
     let body: ref<inkHorizontalPanel> = new inkHorizontalPanel();
     body.SetMargin(inkMargin(70.0, 190.0, 0.0, 0.0));
     body.Reparent(frame);
@@ -335,59 +421,6 @@ public class TKPopup extends InGamePopup {
     overlay.SetAnchorPoint(Vector2(0.0, 0.0));
     overlay.Reparent(viewport);
     this.m_view.SetTipLayer(overlay);
-
-    // footer: the game's own key prompts when the frame lists them, else the text
-    let hints = this.Hints();
-    if ArraySize(hints) > 0 {
-      this.KeyHints(frame, hints);
-    } else if StrLen(this.Footer()) > 0 {
-      let foot: ref<inkText> = TKInk.Line(frame, TKScale.T(this.Footer()), 26, n"Medium", n"MainColors.PanelBlue", 0.0);
-      foot.SetAnchor(inkEAnchor.BottomLeft);
-      foot.SetAnchorPoint(Vector2(0.0, 1.0));
-      foot.SetMargin(inkMargin(70.0, 0.0, 0.0, 40.0));
-      foot.SetOpacity(0.7);
-      this.m_view.Chrome(foot, "text");
-      ArrayPush(this.m_hideable, foot);
-    }
-
-    // a static scanline overlay, over everything (it takes no clicks)
-    let lines = this.m_view.Style().scanlines;
-    if lines > 0.0 {
-      let scan: ref<inkCanvas> = new inkCanvas();
-      scan.SetSize(Vector2(fw, this.FrameHeight()));
-      scan.SetOpacity(MinF(lines, 0.6));
-      scan.Reparent(frame);
-      ArrayPush(this.m_hideable, scan);
-      let y = 0.0;
-      while y < this.FrameHeight() {
-        TKInk.Rect(scan, 0.0, y, fw, 3.0).SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
-        y += 9.0;
-      }
-    }
-
-    // boot text, shown over the frame while it flickers in: one line, or several
-    // that come up one after another
-    let boots = this.BootLines();
-    ArrayClear(this.m_bootLines);
-    this.m_boot = TKInk.Line(frame, ArraySize(boots) > 0 ? "" : TKScale.T(this.BootText()), 40, n"Medium", n"MainColors.Blue", 0.0);
-    this.m_boot.SetAnchor(inkEAnchor.BottomRight);
-    this.m_boot.SetAnchorPoint(Vector2(1.0, 1.0));
-    this.m_boot.SetMargin(inkMargin(0.0, 0.0, 70.0, 40.0));
-    this.m_view.Chrome(this.m_boot, "value");
-    if ArraySize(boots) > 0 {
-      let stack: ref<inkVerticalPanel> = new inkVerticalPanel();
-      stack.SetAnchor(inkEAnchor.BottomRight);
-      stack.SetAnchorPoint(Vector2(1.0, 1.0));
-      stack.SetMargin(inkMargin(0.0, 0.0, 70.0, 40.0));
-      stack.Reparent(frame);
-      for text in boots {
-        let line = TKInk.Line(stack, TKScale.T(text), 32, n"Medium", n"MainColors.Blue", 2.0);
-        line.SetHAlign(inkEHorizontalAlign.Right);
-        line.SetOpacity(0.0);
-        this.m_view.Chrome(line, "value");
-        ArrayPush(this.m_bootLines, line);
-      }
-    }
   }
 
   // the game's button-hint bar (the one under the pause menu), bottom left
@@ -594,7 +627,7 @@ public class TKPopup extends InGamePopup {
   // ---------------------------------------------------------------------------
   // the mouse wheel anywhere scrolls the page (a row that takes the wheel reserves it)
   protected cb func OnFrameRelative(e: ref<inkPointerEvent>) -> Bool {
-    if IsDefined(this.m_view) {
+    if IsDefined(this.m_view) && !IsDefined(this.m_regions) {   // regions scroll under the cursor only
       this.m_view.OnWheel(e);
     }
     return false;
@@ -633,6 +666,9 @@ public class TKPopup extends InGamePopup {
     if IsDefined(this.m_view) {
       this.m_view.StopCustom();
       this.m_view.StopLive();
+    }
+    if IsDefined(this.m_regions) {
+      this.m_regions.Stop();
     }
     this.Closing();
     TKScale.Activate(null);

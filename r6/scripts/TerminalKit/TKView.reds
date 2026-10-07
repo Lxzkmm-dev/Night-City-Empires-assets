@@ -76,6 +76,15 @@ public class TKView extends IScriptable {
   private let m_split: wref<inkHorizontalPanel>;   // Column rows: the strip the columns sit in
   private let m_pageContent: wref<inkVerticalPanel>;
   private let m_pageWidth: Float;
+  // ---- a region of a layout (TKPopup.Layout): the host routes pages and actions ----
+  private let m_host: wref<TKRegions>;
+  private let m_region: String;
+  private let m_noScroll: Bool;               // a fixed region: the wheel never scrolls it
+  // ---- hit areas a custom row registered (Hit) ----
+  private let m_hitActions: array<String>;
+  private let m_hitArgs: array<String>;
+  private let m_hitTips: array<String>;
+  private let m_hitOff: array<Bool>;
 
   // ---------------------------------------------------------------------------
   // Set-up
@@ -104,11 +113,28 @@ public class TKView extends IScriptable {
     area.RegisterToCallback(n"OnRelative", this, n"OnAreaRelative");
   }
 
+  // A region's view: its rows go in `content`, `width` wide; the host (TKRegions)
+  // requests pages and runs actions for every region of the layout
+  public func BindRegion(host: ref<TKRegions>, name: String, content: ref<inkVerticalPanel>, width: Float, fixed: Bool) -> Void {
+    this.m_host = host;
+    this.m_region = name;
+    this.m_noScroll = fixed;
+    this.m_content = content;
+    this.m_width = width;
+  }
+
+  public func Region() -> String = this.m_region
+  public func Host() -> ref<TKRegions> = this.m_host
+  // how tall the visible part of the page (or region) is: a custom row that fills
+  // a non-scrolling region draws Width() x Height()
+  public func Height() -> Float = this.m_scrollH
+
   // where tooltips are drawn: a canvas over the page (the frame's viewport)
   public func SetTipLayer(layer: ref<inkCanvas>) -> Void { this.m_tipLayer = layer; }
 
   public func SetContent(provider: ref<TKContent>) -> Void { this.m_provider = provider; }
   public func SetFrame(frame: ref<TKFrame>) -> Void { this.m_frame = frame; }
+  public func FrameOf() -> ref<TKFrame> = this.m_frame
   public func Owner() -> ref<inkCustomController> = IsDefined(this.m_frame) ? this.m_frame.Owner() : null
   public func Provider() -> ref<TKContent> = this.m_provider
 
@@ -215,7 +241,7 @@ public class TKView extends IScriptable {
     if !IsDefined(this.m_scroll) || !e.IsAction(n"mouse_wheel") || e.IsHandled() {
       return false;
     }
-    if IsDefined(this.m_data) && this.m_data.wheelReserved {
+    if (IsDefined(this.m_data) && this.m_data.wheelReserved) || this.m_noScroll {
       return false;
     }
     let d = e.GetAxisData();
@@ -278,6 +304,9 @@ public class TKView extends IScriptable {
   // History: the page before this one (the frame's right mouse button)
   // ---------------------------------------------------------------------------
   public func Back() -> Bool {
+    if IsDefined(this.m_host) {
+      return this.m_host.Back();
+    }
     let n = ArraySize(this.m_history);
     if n == 0 {
       return false;
@@ -312,11 +341,20 @@ public class TKView extends IScriptable {
     if i < 0 || i >= ArraySize(this.m_tips) {
       return false;
     }
+    this.ShowTip(this.m_tips[i], e);
+    return false;
+  }
+
+  // a tooltip box with `text` above the cursor
+  private func ShowTip(text: String, e: ref<inkPointerEvent>) -> Void {
+    if StrLen(text) == 0 || !IsDefined(this.m_tipLayer) {
+      return;
+    }
     this.HideTip();
     let at = WidgetUtils.GlobalToLocal(this.m_tipLayer, e.GetScreenSpacePosition());
     let w = TKScale.F("tip.w", 640.0);
     let font = TKScale.I("note", 26);
-    let h = TKInk.Lines(this.m_tips[i], font, w - 40.0) * Cast<Float>(font) * 1.35 + 36.0;
+    let h = TKInk.Lines(text, font, w - 40.0) * Cast<Float>(font) * 1.35 + 36.0;
     let x = MinF(at.X + 24.0, MaxF(0.0, this.m_tipLayer.GetSize().X - w));
     let y = MaxF(0.0, at.Y - h - 12.0);
     let box: ref<inkCanvas> = new inkCanvas();
@@ -330,12 +368,98 @@ public class TKView extends IScriptable {
     fill2.SetTintColor(new HDRColor(0.0, 0.0, 0.0, 1.0));
     box.SetOpacity(1.0);
     this.Frame(box, w, h, 2.0, "value", 0.9);
-    let t = this.Text(box, this.m_tips[i], font, n"Regular", "text", 0.0);
+    let t = this.Text(box, text, font, n"Regular", "text", 0.0);
     t.SetLetterCase(textLetterCase.OriginalCase);
     t.SetMargin(inkMargin(20.0, 14.0, 0.0, 0.0));
     t.SetVAlign(inkEVerticalAlign.Top);
     t.SetWrapping(true, w - 40.0);
     this.m_tip = box;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Hit areas: any widget a custom row drew (a hardpoint tag on a schematic, a
+  // part of a picture) can take hover, clicks and the wheel. The kit shows its
+  // tooltip, plays the select or deny sound and runs Act(action, arg); the
+  // provider hears hovers in HitHover and the wheel in HitWheel.
+  // ---------------------------------------------------------------------------
+  public func Hit(w: ref<inkWidget>, action: String, arg: String, tip: String, opt off: Bool) -> Void {
+    if !IsDefined(w) {
+      return;
+    }
+    w.SetName(StringToName("hit_" + IntToString(ArraySize(this.m_hitActions))));
+    ArrayPush(this.m_hitActions, action);
+    ArrayPush(this.m_hitArgs, arg);
+    ArrayPush(this.m_hitTips, tip);
+    ArrayPush(this.m_hitOff, off);
+    w.SetInteractive(true);
+    w.RegisterToCallback(n"OnHoverOver", this, n"OnHitOver");
+    w.RegisterToCallback(n"OnHoverOut", this, n"OnHitOut");
+    w.RegisterToCallback(n"OnRelease", this, n"OnHitRelease");
+    w.RegisterToCallback(n"OnRelative", this, n"OnHitRelative");
+  }
+
+  // the hit area an event came from (-1: none)
+  private func HitIndex(e: ref<inkPointerEvent>) -> Int32 {
+    let target = e.GetCurrentTarget();
+    if !IsDefined(target) {
+      return -1;
+    }
+    let name = NameToString(target.GetName());
+    if !StrBeginsWith(name, "hit_") {
+      return -1;
+    }
+    let i = StringToInt(StrAfterFirst(name, "hit_"), -1);
+    return i >= 0 && i < ArraySize(this.m_hitActions) ? i : -1;
+  }
+
+  protected cb func OnHitOver(e: ref<inkPointerEvent>) -> Bool {
+    let i = this.HitIndex(e);
+    if i >= 0 {
+      this.ShowTip(this.m_hitTips[i], e);
+      if IsDefined(this.m_provider) {
+        this.m_provider.HitHover(this, this.m_hitActions[i], this.m_hitArgs[i], true);
+      }
+    }
+    return false;
+  }
+
+  protected cb func OnHitOut(e: ref<inkPointerEvent>) -> Bool {
+    let i = this.HitIndex(e);
+    this.HideTip();
+    if i >= 0 && IsDefined(this.m_provider) {
+      this.m_provider.HitHover(this, this.m_hitActions[i], this.m_hitArgs[i], false);
+    }
+    return false;
+  }
+
+  protected cb func OnHitRelease(e: ref<inkPointerEvent>) -> Bool {
+    let i = this.HitIndex(e);
+    if i < 0 || !e.IsAction(n"click") {
+      return false;
+    }
+    if this.m_hitOff[i] {
+      let player = GetPlayer(GetGameInstance());
+      if IsDefined(player) && NotEquals(this.Style().denySound, n"") {
+        GameObject.PlaySound(player, this.Style().denySound);
+      }
+      return true;
+    }
+    this.ClickSound();
+    this.HideTip();
+    this.Act(this.m_hitActions[i], this.m_hitArgs[i]);
+    return true;
+  }
+
+  protected cb func OnHitRelative(e: ref<inkPointerEvent>) -> Bool {
+    let i = this.HitIndex(e);
+    if i < 0 || !e.IsAction(n"mouse_wheel") || e.IsHandled() || !IsDefined(this.m_provider) {
+      return false;
+    }
+    let d = e.GetAxisData();
+    if d != 0.0 && this.m_provider.HitWheel(this, this.m_hitActions[i], this.m_hitArgs[i], d) {
+      e.Handle();
+      return true;
+    }
     return false;
   }
 
@@ -409,6 +533,10 @@ public class TKView extends IScriptable {
 
   // runs an action on the current page and redraws (the next page if it named one)
   public func Act(action: String, arg: String) -> Void {
+    if IsDefined(this.m_host) {
+      this.m_host.Act(action, arg);
+      return;
+    }
     let act: ref<TKPage> = new TKPage();
     act.content = this.m_provider;
     act.page = this.m_page;
@@ -599,8 +727,16 @@ public class TKView extends IScriptable {
     this.m_popup = box;
   }
 
-  // closes an open dialog or drop-down list: true when there was one
+  // closes an open dialog or drop-down list: true when there was one (in a
+  // layout, the one on any region)
   public func CloseOverlay() -> Bool {
+    if IsDefined(this.m_host) {
+      return this.m_host.CloseOverlay();
+    }
+    return this.CloseOwnOverlay();
+  }
+
+  public func CloseOwnOverlay() -> Bool {
     let had = IsDefined(this.m_popup) || IsDefined(this.m_blocker);
     if IsDefined(this.m_tipLayer) {
       if IsDefined(this.m_popup) {
@@ -699,6 +835,10 @@ public class TKView extends IScriptable {
   // Build the page and draw it
   // ---------------------------------------------------------------------------
   public func Show(page: String, arg: String, message: String) -> Void {
+    if IsDefined(this.m_host) {
+      this.m_host.Show(page, arg, message);
+      return;
+    }
     if !IsDefined(this.m_content) {
       return;
     }
@@ -717,6 +857,10 @@ public class TKView extends IScriptable {
     this.CloseOverlay();
     this.HideTip();
     ArrayClear(this.m_tips);
+    ArrayClear(this.m_hitActions);
+    ArrayClear(this.m_hitArgs);
+    ArrayClear(this.m_hitTips);
+    ArrayClear(this.m_hitOff);
     this.grown = 0.0;
     this.m_content.RemoveAllChildren();
     ArrayClear(this.m_buttons);
@@ -779,6 +923,56 @@ public class TKView extends IScriptable {
     this.ScrollTo(same ? this.m_scrollY : 0.0);
     this.StartLive();
   }
+
+  // A region's share of a page (the host split it): draws `data`'s rows in this
+  // region; `keep` keeps the scroll position (the same page redrawn)
+  public func Present(data: ref<TKPage>, page: String, arg: String, keep: Bool) -> Void {
+    if !IsDefined(this.m_content) {
+      return;
+    }
+    this.m_page = page;
+    this.m_arg = arg;
+    this.StopCustom();
+    this.StopLive();
+    this.CloseOwnOverlay();
+    this.HideTip();
+    ArrayClear(this.m_tips);
+    ArrayClear(this.m_hitActions);
+    ArrayClear(this.m_hitArgs);
+    ArrayClear(this.m_hitTips);
+    ArrayClear(this.m_hitOff);
+    this.grown = 0.0;
+    this.m_content.RemoveAllChildren();
+    ArrayClear(this.m_buttons);
+    ArrayClear(this.m_sliders);
+    ArrayClear(this.m_inputs);
+    ArrayClear(this.m_inputKeys);
+    this.m_drag = -1;
+    this.linkRows = 0;
+    this.tableLine = 0;
+    this.m_cards = null;
+    this.m_cardCount = 0;
+    this.m_split = null;
+    this.m_data = data;
+    if IsDefined(this.m_scroll) {
+      this.m_scroll.SetUseInternalMask(!data.wheelReserved);
+    }
+    this.SetTheme(data.theme);
+    let content = this.m_content;
+    let width = this.m_width;
+    let i = 0;
+    while i < data.Count() {
+      this.Draw(i, data.Row(i));
+      i += 1;
+    }
+    this.m_content = content;
+    this.m_width = width;
+    this.ScrollTo(keep ? this.m_scrollY : 0.0);
+    this.StartLive();
+  }
+
+  // every text box of this view into an action's page
+  public func AddFields(act: ref<TKPage>) -> Void { this.Fields(act); }
 
   private func Draw(i: Int32, r: ref<TKRow>) -> Void {
     let kind = r.kind;
