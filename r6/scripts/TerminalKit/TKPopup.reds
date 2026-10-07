@@ -640,6 +640,9 @@ public class TKPopup extends InGamePopup {
     if !this.IsTyping() && !e.IsAction(n"click") && this.PressKey(e) {
       return false;
     }
+    if this.PadInput(e) {
+      return false;
+    }
     if IsDefined(this.m_view) && RedFunc.MouseButton(2) && !e.IsAction(n"click") && !e.IsAction(n"mouse_left") {
       if !this.m_rightDown {
         if !this.m_view.CloseOverlay() {
@@ -649,6 +652,42 @@ public class TKPopup extends InGamePopup {
       this.m_rightDown = true;
     } else {
       this.m_rightDown = false;   // any other press (Esc included) clears it
+    }
+    return false;
+  }
+
+  // The pad: the d-pad moves the focus (within a region), the bumpers go to the
+  // next region (or the next sidebar tab without regions), select runs what has
+  // focus. A mouse click takes the focus away.
+  private func PadInput(e: ref<inkPointerEvent>) -> Bool {
+    let pad = IsDefined(this.m_player) && this.m_player.PlayerLastUsedPad();
+    let focused = IsDefined(this.m_regions) ? this.m_regions.HasFocus() : IsDefined(this.m_view) && this.m_view.HasFocus();
+    if focused && (e.IsAction(n"select") || e.IsAction(n"proceed") || (pad && e.IsAction(n"click"))) {
+      return IsDefined(this.m_regions) ? this.m_regions.Activate() : this.m_view.Activate();
+    }
+    if e.IsAction(n"click") || e.IsAction(n"mouse_left") {
+      if focused && !pad {
+        if IsDefined(this.m_regions) {
+          this.m_regions.ClearFocus();
+        } else {
+          this.m_view.Focus(-1);
+        }
+      }
+      return false;
+    }
+    let step = 0;
+    if e.IsAction(n"navigate_up") || e.IsAction(n"navigate_left") {
+      step = -1;
+    }
+    if e.IsAction(n"navigate_down") || e.IsAction(n"navigate_right") {
+      step = 1;
+    }
+    if step != 0 {
+      return IsDefined(this.m_regions) ? this.m_regions.FocusStep(step) : IsDefined(this.m_view) && this.m_view.FocusStep(step);
+    }
+    let dir = e.IsAction(n"prior_menu") ? -1 : (e.IsAction(n"next_menu") ? 1 : 0);
+    if dir != 0 {
+      return IsDefined(this.m_regions) ? this.m_regions.FocusRegion(dir) : IsDefined(this.m_view) && this.m_view.TabStep(dir);
     }
     return false;
   }

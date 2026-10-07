@@ -94,11 +94,17 @@ public class TKView extends IScriptable {
   private let m_keyActions: array<String>;
   private let m_keyArgs: array<String>;
   private let m_keyOff: array<Bool>;
+  // ---- controller focus: what the d-pad moves through, in drawing order ----
+  private let m_focusW: array<wref<inkWidget>>;
+  private let m_focusNames: array<String>;
+  private let m_focusOff: array<Bool>;
+  private let m_focus: Int32;                 // -1 = none (set when the view is bound)
 
   // ---------------------------------------------------------------------------
   // Set-up
   // ---------------------------------------------------------------------------
   public func Bind(content: ref<inkVerticalPanel>, title: ref<inkText>, subtitle: ref<inkText>, message: ref<inkText>, width: Float) -> Void {
+    this.m_focus = -1;
     this.m_content = content;
     this.m_title = title;
     this.m_subtitle = subtitle;
@@ -125,6 +131,7 @@ public class TKView extends IScriptable {
   // A region's view: its rows go in `content`, `width` wide; the host (TKRegions)
   // requests pages and runs actions for every region of the layout
   public func BindRegion(host: ref<TKRegions>, name: String, content: ref<inkVerticalPanel>, width: Float, fixed: Bool) -> Void {
+    this.m_focus = -1;
     this.m_host = host;
     this.m_region = name;
     this.m_noScroll = fixed;
@@ -400,6 +407,7 @@ public class TKView extends IScriptable {
     ArrayPush(this.m_hitArgs, arg);
     ArrayPush(this.m_hitTips, tip);
     ArrayPush(this.m_hitOff, off);
+    this.AddFocus(w, NameToString(w.GetName()), off);
     w.SetInteractive(true);
     w.RegisterToCallback(n"OnHoverOver", this, n"OnHitOver");
     w.RegisterToCallback(n"OnHoverOut", this, n"OnHitOut");
@@ -489,19 +497,27 @@ public class TKView extends IScriptable {
   // ---------------------------------------------------------------------------
   // "tab_<page>" or "tab_<page>~<arg>"
   protected cb func OnTabClick(widget: wref<inkWidget>) -> Bool {
-    let target = StrAfterFirst(NameToString(widget.GetName()), "tab_");
+    this.RunTab(StrAfterFirst(NameToString(widget.GetName()), "tab_"));
+    return true;
+  }
+
+  private func RunTab(target: String) -> Void {
     this.ClickSound();
     if StrContains(target, "~") {
       this.Show(StrBeforeFirst(target, "~"), StrAfterFirst(target, "~"), "");
     } else {
       this.Show(target, "", "");
     }
-    return true;
   }
 
   // "act_<row>" or "act_<row>_<button>"
   protected cb func OnActClick(widget: wref<inkWidget>) -> Bool {
-    let id = StrAfterFirst(NameToString(widget.GetName()), "act_");
+    this.RunAct(StrAfterFirst(NameToString(widget.GetName()), "act_"));
+    return true;
+  }
+
+  // row i's button n ("i" or "i_n"), as a click would run it
+  private func RunAct(id: String) -> Void {
     let n = 0;
     if StrContains(id, "_") {
       n = StringToInt(StrAfterFirst(id, "_"), 0);
@@ -509,11 +525,11 @@ public class TKView extends IScriptable {
     }
     let i = StringToInt(id, -1);
     if !IsDefined(this.m_data) || i < 0 || i >= this.m_data.Count() {
-      return true;
+      return;
     }
     let row = this.m_data.Row(i);
     if n < 0 || n >= ArraySize(row.actions) {
-      return true;
+      return;
     }
     let arg = row.args[n];
     this.ClickSound();
@@ -534,10 +550,9 @@ public class TKView extends IScriptable {
       let green: Bool;
       about = TKTheme.Unmark(about, red, green);
       this.Dialog(yes + "?" + (StrLen(about) > 0 ? "\n" + about : ""), yes, row.actions[n], arg);
-      return true;
+      return;
     }
     this.Act(row.actions[n], arg);
-    return true;
   }
 
   // runs an action on the current page and redraws (the next page if it named one)
@@ -570,6 +585,9 @@ public class TKView extends IScriptable {
   // ---------------------------------------------------------------------------
   // a widget that reports a click to OnControlRelease under `name`
   public func Clickable(w: ref<inkWidget>, name: String) -> Void {
+    if !StrBeginsWith(name, "ovl_") {
+      this.AddFocus(w, name, false);
+    }
     w.SetName(StringToName(name));
     w.SetInteractive(true);
     w.RegisterToCallback(n"OnRelease", this, n"OnControlRelease");
@@ -581,6 +599,9 @@ public class TKView extends IScriptable {
     TKTheme.Paint(b.GetLabel(), this.m_theme, "value");
     b.GetRootWidget().RegisterToCallback(n"OnRelease", this, n"OnControlRelease");
     ArrayPush(this.m_buttons, b);
+    if !StrBeginsWith(name, "dlg_") && !StrBeginsWith(name, "ddo_") {
+      this.AddFocus(b.GetRootWidget(), name, false);
+    }
     return b;
   }
 
@@ -595,7 +616,11 @@ public class TKView extends IScriptable {
     if !IsDefined(target) {
       return false;
     }
-    let name = NameToString(target.GetName());
+    return this.RunControl(NameToString(target.GetName()), e);
+  }
+
+  // a control named `name` pressed (a dialog button, a drop-down, a check box...)
+  private func RunControl(name: String, e: ref<inkPointerEvent>) -> Bool {
     if Equals(name, "dlg_yes") {
       let action = this.m_dlgAction;
       let arg = this.m_dlgArg;
@@ -710,7 +735,8 @@ public class TKView extends IScriptable {
     this.Blocker();
     this.m_blocker.SetOpacity(0.01);
     let layer = this.m_tipLayer;
-    let at = WidgetUtils.GlobalToLocal(layer, e.GetScreenSpacePosition());
+    // under the cursor; opened from the pad (no pointer), in the middle
+    let at = IsDefined(e) ? WidgetUtils.GlobalToLocal(layer, e.GetScreenSpacePosition()) : Vector2(layer.GetSize().X / 2.0, layer.GetSize().Y / 3.0);
     let bw = TKScale.F("dropdown.w", 420.0);
     let bh = TKScale.F("dropdown.h", 56.0);
     let n = ArraySize(row.labels);
@@ -882,6 +908,9 @@ public class TKView extends IScriptable {
     ArrayClear(this.m_keyActions);
     ArrayClear(this.m_keyArgs);
     ArrayClear(this.m_keyOff);
+    ArrayClear(this.m_focusW);
+    ArrayClear(this.m_focusNames);
+    ArrayClear(this.m_focusOff);
     this.linkRows = 0;
     this.tableLine = 0;
     this.m_cards = null;
@@ -936,6 +965,7 @@ public class TKView extends IScriptable {
     // a redraw of the same page keeps its place; a new page starts at the top
     this.ScrollTo(same ? this.m_scrollY : 0.0);
     this.StartLive();
+    this.RestoreFocus();
   }
 
   // A region's share of a page (the host split it): draws `data`'s rows in this
@@ -967,6 +997,9 @@ public class TKView extends IScriptable {
     ArrayClear(this.m_keyActions);
     ArrayClear(this.m_keyArgs);
     ArrayClear(this.m_keyOff);
+    ArrayClear(this.m_focusW);
+    ArrayClear(this.m_focusNames);
+    ArrayClear(this.m_focusOff);
     this.linkRows = 0;
     this.tableLine = 0;
     this.m_cards = null;
@@ -988,6 +1021,7 @@ public class TKView extends IScriptable {
     this.m_width = width;
     this.ScrollTo(keep ? this.m_scrollY : 0.0);
     this.StartLive();
+    this.RestoreFocus();
   }
 
   // a page slid over this region: it comes in from the right
@@ -1034,6 +1068,109 @@ public class TKView extends IScriptable {
       k += 1;
     }
     return false;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Controller focus: the d-pad moves a highlight through the page's buttons,
+  // controls and hit areas in the order they were drawn; the pad's select runs
+  // the one in focus. The mouse takes over again on its next click.
+  // ---------------------------------------------------------------------------
+  public func AddFocus(w: ref<inkWidget>, name: String, off: Bool) -> Void {
+    if !IsDefined(w) {
+      return;
+    }
+    ArrayPush(this.m_focusW, w);
+    ArrayPush(this.m_focusNames, name);
+    ArrayPush(this.m_focusOff, off);
+  }
+
+  public func Focusables() -> Int32 = ArraySize(this.m_focusW)
+  public func HasFocus() -> Bool = this.m_focus >= 0
+
+  // puts the highlight on focusable i (-1 takes it off)
+  public func Focus(i: Int32) -> Void {
+    if this.m_focus >= 0 && this.m_focus < ArraySize(this.m_focusW) && IsDefined(this.m_focusW[this.m_focus]) {
+      this.m_focusW[this.m_focus].SetScale(Vector2(1.0, 1.0));
+      this.m_focusW[this.m_focus].SetOpacity(this.m_focusOff[this.m_focus] ? 0.45 : 1.0);
+    }
+    this.m_focus = i >= 0 && i < ArraySize(this.m_focusW) ? i : -1;
+    if this.m_focus >= 0 && IsDefined(this.m_focusW[this.m_focus]) {
+      let w = this.m_focusW[this.m_focus];
+      w.SetRenderTransformPivot(Vector2(0.5, 0.5));
+      w.SetScale(Vector2(1.05, 1.05));
+      w.SetOpacity(1.0);
+      this.HideTip();
+    }
+  }
+
+  // one step through the focusables (wrapping); false when there are none
+  public func FocusStep(step: Int32) -> Bool {
+    let n = ArraySize(this.m_focusW);
+    if n == 0 {
+      return false;
+    }
+    let i = this.m_focus < 0 ? (step > 0 ? 0 : n - 1) : (this.m_focus + step + n) % n;
+    this.Focus(i);
+    return true;
+  }
+
+  private func RestoreFocus() -> Void {
+    if this.m_focus >= 0 {
+      let i = Min(this.m_focus, ArraySize(this.m_focusW) - 1);
+      this.m_focus = -1;
+      this.Focus(i);
+    }
+  }
+
+  // runs the focusable in focus as a click would; false when nothing has focus
+  public func Activate() -> Bool {
+    if this.m_focus < 0 || this.m_focus >= ArraySize(this.m_focusNames) {
+      return false;
+    }
+    let name = this.m_focusNames[this.m_focus];
+    if this.m_focusOff[this.m_focus] {
+      let player = GetPlayer(GetGameInstance());
+      if IsDefined(player) && NotEquals(this.Style().denySound, n"") {
+        GameObject.PlaySound(player, this.Style().denySound);
+      }
+      return true;
+    }
+    if StrBeginsWith(name, "act_") {
+      this.RunAct(StrAfterFirst(name, "act_"));
+      return true;
+    }
+    if StrBeginsWith(name, "tab_") {
+      this.RunTab(StrAfterFirst(name, "tab_"));
+      return true;
+    }
+    if StrBeginsWith(name, "hit_") {
+      let i = StringToInt(StrAfterFirst(name, "hit_"), -1);
+      if i >= 0 && i < ArraySize(this.m_hitActions) {
+        this.ClickSound();
+        this.Act(this.m_hitActions[i], this.m_hitArgs[i]);
+      }
+      return true;
+    }
+    return this.RunControl(name, null);
+  }
+
+  // the sidebar tab after (1) or before (-1) the one shown; false without tabs
+  public func TabStep(step: Int32) -> Bool {
+    let n = ArraySize(this.m_tabs);
+    if n == 0 {
+      return false;
+    }
+    let at = 0;
+    let i = 0;
+    while i < n {
+      if this.m_tabs[i].IsDisabled() {
+        at = i;
+      }
+      i += 1;
+    }
+    let next = this.m_tabs[(at + step + n) % n];
+    this.RunTab(StrAfterFirst(NameToString(next.GetName()), "tab_"));
+    return true;
   }
 
   // every text box of this view into an action's page
@@ -1282,6 +1419,7 @@ public class TKView extends IScriptable {
     }
     TKTheme.Paint(b.GetLabel(), this.m_theme, "value");
     ArrayPush(this.m_buttons, b);
+    this.AddFocus(b.GetRootWidget(), "act_" + IntToString(i) + (n > 0 ? "_" + IntToString(n) : ""), off || !on);
     return b;
   }
 
@@ -1359,6 +1497,7 @@ public class TKView extends IScriptable {
     b.RegisterToCallback(n"OnBtnClick", this, n"OnTabClick");
     TKTheme.Paint(b.GetLabel(), this.m_theme, "value");
     ArrayPush(this.m_buttons, b);
+    this.AddFocus(b.GetRootWidget(), "tab_" + target, current);
     return b;
   }
 

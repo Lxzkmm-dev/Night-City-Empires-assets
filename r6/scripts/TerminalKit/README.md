@@ -27,6 +27,8 @@ public class MyContent extends TKContent {
 // from your key: if TKPopup.CanOpen(player) { TKPopup.Open(player, new MyTerminal()); }
 ```
 
+**With a controller**, the d-pad moves a highlight through the page's buttons, controls and hit areas in the order they were drawn. Select (or A) runs the highlighted one. The bumpers move to the next pane in a layout, or to the next sidebar tab without one. A mouse click takes the highlight away. Dialogs and drop-down lists still need the mouse, and the highlight doesn't scroll a long pane yet.
+
 `TKPopup` gives you a lens tint over the world, HUD corner brackets, a brand line, sidebar tabs, a scrolling page with a scroll bar, tooltips, a footer and a boot flicker. The wheel scrolls, the right mouse button goes back a page (closing a dialog or a list first), Esc closes. Override `Brand`, `Status`, `Footer`, `BootText`, `StartPage`, `CornerTab` (a button top right), `Lens`, the sizes, and the hooks `Setup` (before building), `Icon` (an image left of the brand), `Opened` (the first page), `Closing` and `Closed`. `examples/HelloTerminal` is a complete mod to copy.
 
 ### A look of your own

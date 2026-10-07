@@ -33,6 +33,7 @@ public class TKRegions extends IScriptable {
   // a page slid over a region (Overlay): its page and arg, "" for none
   private let m_overPages: array<String>;
   private let m_overArgs: array<String>;
+  private let m_focusRegion: Int32;          // the region the pad's focus is in (-1: none)
 
   public func Count() -> Int32 = ArraySize(this.m_views)
   public func View(i: Int32) -> ref<TKView> = i >= 0 && i < ArraySize(this.m_views) ? this.m_views[i] : null
@@ -64,6 +65,7 @@ public class TKRegions extends IScriptable {
     first: ref<TKView>, frame: ref<TKFrame>, provider: ref<TKContent>, style: ref<TKStyle>, message: ref<inkText>) -> Void {
     this.m_provider = provider;
     this.m_message = message;
+    this.m_focusRegion = -1;
     let gap = TKScale.F("region.gap", 20.0);
     // the docks carve the rest in the order listed; "fill" waits for what remains
     let left = x;
@@ -487,6 +489,52 @@ public class TKRegions extends IScriptable {
       }
     }
     return false;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Controller focus: the d-pad moves within a region, the bumpers between them
+  // ---------------------------------------------------------------------------
+  public func HasFocus() -> Bool = this.m_focusRegion >= 0
+
+  public func FocusStep(step: Int32) -> Bool {
+    if this.m_focusRegion < 0 || this.m_focusRegion >= ArraySize(this.m_views) {
+      return this.FocusRegion(1);
+    }
+    return this.m_views[this.m_focusRegion].FocusStep(step);
+  }
+
+  // to the next (1) or previous (-1) region that has something to focus
+  public func FocusRegion(dir: Int32) -> Bool {
+    let n = ArraySize(this.m_views);
+    if n == 0 {
+      return false;
+    }
+    let at = this.m_focusRegion;
+    let k = 0;
+    while k < n {
+      at = at < 0 ? (dir > 0 ? 0 : n - 1) : (at + dir + n) % n;
+      if this.m_views[at].Focusables() > 0 {
+        if this.m_focusRegion >= 0 && this.m_focusRegion < n {
+          this.m_views[this.m_focusRegion].Focus(-1);
+        }
+        this.m_focusRegion = at;
+        this.m_views[at].FocusStep(1);
+        return true;
+      }
+      k += 1;
+    }
+    return false;
+  }
+
+  public func Activate() -> Bool {
+    return this.m_focusRegion >= 0 && this.m_focusRegion < ArraySize(this.m_views) && this.m_views[this.m_focusRegion].Activate();
+  }
+
+  public func ClearFocus() -> Void {
+    for v in this.m_views {
+      v.Focus(-1);
+    }
+    this.m_focusRegion = -1;
   }
 
   public func Stop() -> Void {
