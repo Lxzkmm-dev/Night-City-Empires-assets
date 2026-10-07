@@ -85,6 +85,10 @@ public class TKView extends IScriptable {
   private let m_hitArgs: array<String>;
   private let m_hitTips: array<String>;
   private let m_hitOff: array<Bool>;
+  // ---- the hold-to-confirm button being held ("~LABEL") ----
+  private let m_holdName: String;
+  private let m_holdFill: wref<inkWidget>;
+  private let m_holdProxy: ref<inkAnimProxy>;
 
   // ---------------------------------------------------------------------------
   // Set-up
@@ -868,6 +872,7 @@ public class TKView extends IScriptable {
     ArrayClear(this.m_inputs);
     ArrayClear(this.m_inputKeys);
     this.m_drag = -1;
+    this.HoldStop();
     this.linkRows = 0;
     this.tableLine = 0;
     this.m_cards = null;
@@ -948,6 +953,7 @@ public class TKView extends IScriptable {
     ArrayClear(this.m_inputs);
     ArrayClear(this.m_inputKeys);
     this.m_drag = -1;
+    this.HoldStop();
     this.linkRows = 0;
     this.tableLine = 0;
     this.m_cards = null;
@@ -1198,16 +1204,103 @@ public class TKView extends IScriptable {
     if StrBeginsWith(shown, "?") {
       shown = StrAfterFirst(shown, "?");
     }
+    let hold = StrBeginsWith(shown, "~");
+    if hold {
+      shown = StrAfterFirst(shown, "~");
+    }
     let b = TKButton.Make(parent, shown, "act_" + IntToString(i) + (n > 0 ? "_" + IntToString(n) : ""), width, height, size);
     b.SetDisabled(off || !on);
     // a disabled button sends no click: its own widget tells us it was pressed
     if (off || !on) && NotEquals(this.Style().denySound, n"") {
       b.GetRootWidget().RegisterToCallback(n"OnPress", this, n"OnDeniedPress");
     }
-    b.RegisterToCallback(n"OnBtnClick", this, n"OnActClick");
+    if hold && !off && on {
+      // "~LABEL": held down while a bar fills across it; letting go early cancels
+      let fill = new inkRectangle();
+      fill.SetName(n"hold_fill");
+      fill.SetAnchor(inkEAnchor.CenterLeft);
+      fill.SetAnchorPoint(Vector2(0.0, 0.5));
+      fill.SetSize(Vector2(0.0, height));
+      fill.SetOpacity(0.3);
+      fill.Reparent(b.GetRootCompoundWidget());
+      TKTheme.PaintNew(fill, this.m_theme, "accent");
+      let root = b.GetRootWidget();
+      root.RegisterToCallback(n"OnPress", this, n"OnHoldPress");
+      root.RegisterToCallback(n"OnRelease", this, n"OnHoldRelease");
+      root.RegisterToCallback(n"OnHoverOut", this, n"OnHoldRelease");
+    } else {
+      b.RegisterToCallback(n"OnBtnClick", this, n"OnActClick");
+    }
     TKTheme.Paint(b.GetLabel(), this.m_theme, "value");
     ArrayPush(this.m_buttons, b);
     return b;
+  }
+
+  // ---- hold-to-confirm buttons ----
+  protected cb func OnHoldPress(e: ref<inkPointerEvent>) -> Bool {
+    if !e.IsAction(n"click") {
+      return false;
+    }
+    let root = e.GetCurrentTarget() as inkCompoundWidget;
+    if !IsDefined(root) {
+      return false;
+    }
+    let fill = root.GetWidget(n"hold_fill");
+    if !IsDefined(fill) {
+      return false;
+    }
+    this.HoldStop();
+    this.m_holdName = NameToString(root.GetName());
+    this.m_holdFill = fill;
+    let def: ref<inkAnimDef> = new inkAnimDef();
+    let grow: ref<inkAnimSize> = new inkAnimSize();
+    grow.SetStartSize(Vector2(0.0, fill.GetHeight()));
+    grow.SetEndSize(Vector2(root.GetWidth(), fill.GetHeight()));
+    grow.SetDuration(TKScale.F("hold.secs", 1.2));
+    def.AddInterpolator(grow);
+    this.m_holdProxy = fill.PlayAnimation(def);
+    this.m_holdProxy.RegisterToCallback(inkanimEventType.OnFinish, this, n"OnHoldDone");
+    return true;
+  }
+
+  protected cb func OnHoldRelease(e: ref<inkPointerEvent>) -> Bool {
+    this.HoldStop();
+    return false;
+  }
+
+  // held long enough: run the button as a click would
+  protected cb func OnHoldDone(proxy: ref<inkAnimProxy>) -> Bool {
+    let name = this.m_holdName;
+    this.HoldStop();
+    let id = StrAfterFirst(name, "act_");
+    let n = 0;
+    if StrContains(id, "_") {
+      n = StringToInt(StrAfterFirst(id, "_"), 0);
+      id = StrBeforeFirst(id, "_");
+    }
+    let i = StringToInt(id, -1);
+    if !IsDefined(this.m_data) || i < 0 || i >= this.m_data.Count() {
+      return true;
+    }
+    let row = this.m_data.Row(i);
+    if n >= 0 && n < ArraySize(row.actions) {
+      this.ClickSound();
+      this.Act(row.actions[n], row.args[n]);
+    }
+    return true;
+  }
+
+  private func HoldStop() -> Void {
+    if IsDefined(this.m_holdProxy) {
+      this.m_holdProxy.UnregisterFromAllCallbacks(inkanimEventType.OnFinish);
+      this.m_holdProxy.Stop();
+      this.m_holdProxy = null;
+    }
+    if IsDefined(this.m_holdFill) {
+      this.m_holdFill.SetSize(Vector2(0.0, this.m_holdFill.GetHeight()));
+    }
+    this.m_holdFill = null;
+    this.m_holdName = "";
   }
 
   // a button that opens a page ("page" or "page~arg")
