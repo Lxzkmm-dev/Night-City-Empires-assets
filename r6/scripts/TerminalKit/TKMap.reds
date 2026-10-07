@@ -69,6 +69,17 @@ public class TKMapPin extends IScriptable {
   public let group: String;           // a toggle can hide a group
   public let square: Bool;            // a square instead of a diamond
   public let faint: Bool;             // smaller and see-through (a site for sale)
+  public let id: String;              // a name to move it by (TKMap.MovePin)
+  public let ring: Float;             // a dashed circle this many metres around it (0 = none)
+  public let iconAtlas: String;       // an image instead of the diamond ("" = the diamond)
+  public let iconPart: CName;
+  public let follow: String;          // a TKPins pin it follows while the map is open
+
+  public func Ring(metres: Float) -> ref<TKMapPin> { this.ring = metres; return this; }
+  public func Icon(atlas: String, part: String) -> ref<TKMapPin> { this.iconAtlas = atlas; this.iconPart = StringToName(part); return this; }
+  public func Named(id: String) -> ref<TKMapPin> { this.id = id; return this; }
+  // keeps to the TKPins pin `key` (its position checked twice a second)
+  public func Follow(key: String) -> ref<TKMapPin> { this.follow = key; return this; }
 }
 
 public class TKMapLayer extends IScriptable {
@@ -138,6 +149,7 @@ public class TKMapSpec extends IScriptable {
   public let buttonW: Float;
   public let buttonH: Float;
   public let buttonFont: Int32;
+  public let clickAction: String;     // a click on open map calls Act(this, "x|y") in world metres ("" = none)
 
   public static func Make(west: Float, north: Float, span: Float) -> ref<TKMapSpec> {
     let s = new TKMapSpec();
@@ -194,6 +206,10 @@ public class TKMapSpec extends IScriptable {
     ArrayPush(this.legend, l);
   }
 
+  // a left click on the map (not on a pin) calls Act(action, "x|y"), the spot in
+  // world metres, instead of selecting a region
+  public func OnClick(action: String) -> Void { this.clickAction = action; }
+
   public func View(zoom: Float, mode: Int32, x: Float, y: Float, selected: String, link: String) -> Void {
     this.zoom = zoom; this.mode = mode; this.centreX = x; this.centreY = y; this.selected = selected; this.link = link;
   }
@@ -232,6 +248,10 @@ public class TKMap extends TKCustom {
   private let m_dragFrom: Vector2;
   private let m_pinAt: array<Vector2>;
   private let m_pinLinks: array<String>;
+  private let m_pinIds: array<String>;
+  private let m_pinFollow: array<String>;
+  private let m_pinHolders: array<wref<inkCanvas>>;
+  private let m_followGen: Int32;
 
   // centred on the page, `w` x `h` (narrowed to the page), its height counted for scrolling
   public static func Place(v: ref<TKView>, parent: ref<inkCompoundWidget>, spec: ref<TKMapSpec>, w: Float, h: Float) -> ref<TKMap> {
@@ -586,17 +606,112 @@ public class TKMap extends TKCustom {
   private func Pins(map: ref<inkCanvas>) -> Void {
     ArrayClear(this.m_pinAt);
     ArrayClear(this.m_pinLinks);
+    ArrayClear(this.m_pinIds);
+    ArrayClear(this.m_pinFollow);
+    ArrayClear(this.m_pinHolders);
+    let following = false;
     for p in this.m_spec.pins {
       if StrLen(p.group) == 0 || this.ToggleOn(p.group) {
         let at = this.ToPx(p.x, p.y);
-        this.Pin(map, at, p);
+        // each pin in its own holder at its spot, so it can move without a redraw
+        let holder: ref<inkCanvas> = new inkCanvas();
+        holder.SetAnchor(inkEAnchor.TopLeft);
+        holder.SetSize(Vector2(0.0, 0.0));
+        holder.SetMargin(inkMargin(at.X, at.Y, 0.0, 0.0));
+        holder.Reparent(map);
+        if p.ring > 0.0 {
+          this.RingAround(holder, p.ring / this.m_spec.span * this.m_size, p.color);
+        }
+        this.Pin(holder, Vector2(0.0, 0.0), p);
         ArrayPush(this.m_pinAt, at);
         ArrayPush(this.m_pinLinks, p.link);
+        ArrayPush(this.m_pinIds, p.id);
+        ArrayPush(this.m_pinFollow, p.follow);
+        ArrayPush(this.m_pinHolders, holder);
+        if StrLen(p.follow) > 0 {
+          following = true;
+        }
       }
+    }
+    if following {
+      this.m_followGen += 1;
+      this.FollowStep(this.m_followGen);
     }
   }
 
+  // a dashed circle `radius` map pixels around (0, 0)
+  private func RingAround(holder: ref<inkCanvas>, radius: Float, color: HDRColor) -> Void {
+    if radius < 4.0 {
+      return;
+    }
+    let n = Clamp(RoundF(radius / 6.0), 16, 96);
+    let k = 0;
+    while k < n {
+      if k % 2 == 0 {
+        let a0 = 6.2831853 * Cast<Float>(k) / Cast<Float>(n);
+        let a1 = 6.2831853 * Cast<Float>(k + 1) / Cast<Float>(n);
+        TKInk.Seg(holder, Vector2(CosF(a0) * radius, SinF(a0) * radius), Vector2(CosF(a1) * radius, SinF(a1) * radius), 2.0, color, 0.9);
+      }
+      k += 1;
+    }
+  }
+
+  // moves the pin named `id` to a world spot, without redrawing the map
+  public func MovePin(id: String, x: Float, y: Float) -> Void {
+    let i = 0;
+    while i < ArraySize(this.m_pinIds) {
+      if Equals(this.m_pinIds[i], id) {
+        let at = this.ToPx(x, y);
+        this.m_pinAt[i] = at;
+        if IsDefined(this.m_pinHolders[i]) {
+          this.m_pinHolders[i].SetMargin(inkMargin(at.X, at.Y, 0.0, 0.0));
+        }
+      }
+      i += 1;
+    }
+  }
+
+  // pins that follow a TKPins pin: checked twice a second while the map is up
+  public func FollowStep(gen: Int32) -> Void {
+    if gen != this.m_followGen || !IsDefined(this.m_map) {
+      return;
+    }
+    let i = 0;
+    while i < ArraySize(this.m_pinFollow) {
+      let pos: Vector4;
+      if StrLen(this.m_pinFollow[i]) > 0 && TKPins.Position(this.m_pinFollow[i], pos) {
+        let at = this.ToPx(pos.X, pos.Y);
+        this.m_pinAt[i] = at;
+        if IsDefined(this.m_pinHolders[i]) {
+          this.m_pinHolders[i].SetMargin(inkMargin(at.X, at.Y, 0.0, 0.0));
+        }
+      }
+      i += 1;
+    }
+    let cb = new TKMapFollowTick();
+    cb.map = this;
+    cb.gen = gen;
+    GameInstance.GetDelaySystem(GetGameInstance()).DelayCallback(cb, 0.5, false);
+  }
+
   private func Pin(map: ref<inkCanvas>, at: Vector2, p: ref<TKMapPin>) -> Void {
+    if StrLen(p.iconAtlas) > 0 {
+      // the mod's own icon in the pin's colour, its name beside it
+      let isize = p.faint ? 32.0 : 44.0;
+      let img: ref<inkImage> = new inkImage();
+      img.SetAtlasResource(ResRef.FromString(p.iconAtlas));
+      img.SetTexturePart(p.iconPart);
+      img.SetAnchor(inkEAnchor.TopLeft);
+      img.SetSize(Vector2(isize, isize));
+      img.SetMargin(inkMargin(at.X - isize / 2.0, at.Y - isize / 2.0, 0.0, 0.0));
+      img.SetTintColor(p.color);
+      img.Reparent(map);
+      if StrLen(p.label) > 0 {
+        let label = TKInk.Tinted(map, StrUpper(p.label), 24, n"Semi-Bold", p.color, 0.0);
+        label.SetMargin(inkMargin(at.X + isize / 2.0 + 10.0, at.Y - 15.0, 0.0, 0.0));
+      }
+      return;
+    }
     let faint = p.faint;
     let color = p.color;
     let dark = new HDRColor(0.02, 0.04, 0.06, 1.0);
@@ -922,6 +1037,12 @@ public class TKMap extends TKCustom {
         view.Show(StrContains(link, "~") ? StrBeforeFirst(link, "~") : link, StrContains(link, "~") ? StrAfterFirst(link, "~") : "", "");
         return;
       }
+      if StrLen(this.m_spec.clickAction) > 0 && IsDefined(view) {
+        let w = this.ToWorld(spot, this.m_size);
+        this.Remember();
+        view.Act(this.m_spec.clickAction, IntToString(RoundF(w.X)) + "|" + IntToString(RoundF(w.Y)));
+        return;
+      }
       let hit = this.RegionAt(this.ToWorld(spot, this.m_size));
       if StrLen(hit) > 0 && !Equals(hit, this.m_spec.selected) {
         this.Go(this.m_zoom, centre, hit);
@@ -976,8 +1097,20 @@ public class TKMap extends TKCustom {
 
   // the page is going away
   public func Stop() -> Void {
+    this.m_followGen += 1;
     this.m_dragging = false;
     this.HookDrag(false);
     this.HookPress(false);
+  }
+}
+
+// the map's follow tick (stops when the map goes)
+public class TKMapFollowTick extends DelayCallback {
+  public let map: wref<TKMap>;
+  public let gen: Int32;
+  public func Call() -> Void {
+    if IsDefined(this.map) {
+      this.map.FollowStep(this.gen);
+    }
   }
 }

@@ -97,7 +97,12 @@ Action rows split their buttons once, typed: `row.labels`, `row.actions`, `row.a
 
 ## The map (`TKMap`)
 
-Describe it with a `TKMapSpec` (the map square in world units, a base image, tile layers per zoom level with `%C` / `%R` in the path, regions with rings, labels and tint masks, pins with letters, colours, links and groups, toggles, a legend) and draw it from your `Custom()` with `TKMap.Place(v, parent, spec, w, h)`. Drag with the left or middle button, scroll to zoom on the cursor, click a region to select it or a pin to open its page. A new view redraws the page through the spec's link (`%D` region, `%Z` zoom, `%M` toggle bits, `%X` / `%Y` the centre).
+Describe it with a `TKMapSpec` (the map square in world units, a base image, tile layers per zoom level with `%C` / `%R` in the path, regions with rings, labels and tint masks, pins with letters, colours, links and groups, toggles, a legend) and draw it from your `Custom()` with `TKMap.Place(v, parent, spec, w, h)`. Drag with the left or middle button, scroll to zoom on the cursor, click a region to select it or a pin to open its page.
+
+Map options:
+- **Clicks on the map:** `spec.OnClick(action)` makes a left click anywhere except on a pin call `Act(action, "x|y")` with the spot in world metres, for example a drone's loiter point. It replaces selecting a region.
+- **Pin rings and icons:** `pin.Ring(metres)` draws a dashed circle around a pin (an orbit, a loiter area), and `pin.Icon(atlas, part)` draws your own image in the pin's colour instead of the diamond.
+- **Live pins:** name a pin with `pin.Named(id)`, keep the `TKMap` that `TKMap.Place` returns, and call `map.MovePin(id, x, y)` to move the pin without redrawing. `pin.Follow(key)` keeps a pin on a `TKPins` pin by itself, checked twice a second. A new view redraws the page through the spec's link (`%D` region, `%Z` zoom, `%M` toggle bits, `%X` / `%Y` the centre).
 
 ## HUD pieces (`TKHud`)
 
