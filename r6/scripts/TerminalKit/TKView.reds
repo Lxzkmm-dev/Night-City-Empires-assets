@@ -89,6 +89,11 @@ public class TKView extends IScriptable {
   private let m_holdName: String;
   private let m_holdFill: wref<inkWidget>;
   private let m_holdProxy: ref<inkAnimProxy>;
+  // ---- keycaps on the page: their input actions run them (Key rows) ----
+  private let m_keyNames: array<CName>;
+  private let m_keyActions: array<String>;
+  private let m_keyArgs: array<String>;
+  private let m_keyOff: array<Bool>;
 
   // ---------------------------------------------------------------------------
   // Set-up
@@ -873,6 +878,10 @@ public class TKView extends IScriptable {
     ArrayClear(this.m_inputKeys);
     this.m_drag = -1;
     this.HoldStop();
+    ArrayClear(this.m_keyNames);
+    ArrayClear(this.m_keyActions);
+    ArrayClear(this.m_keyArgs);
+    ArrayClear(this.m_keyOff);
     this.linkRows = 0;
     this.tableLine = 0;
     this.m_cards = null;
@@ -954,6 +963,10 @@ public class TKView extends IScriptable {
     ArrayClear(this.m_inputKeys);
     this.m_drag = -1;
     this.HoldStop();
+    ArrayClear(this.m_keyNames);
+    ArrayClear(this.m_keyActions);
+    ArrayClear(this.m_keyArgs);
+    ArrayClear(this.m_keyOff);
     this.linkRows = 0;
     this.tableLine = 0;
     this.m_cards = null;
@@ -994,13 +1007,42 @@ public class TKView extends IScriptable {
     this.m_scroll.PlayAnimation(def);
   }
 
+  // a keycap on the page: its input action runs it while the frame is open
+  public func AddKey(name: CName, action: String, arg: String, off: Bool) -> Void {
+    ArrayPush(this.m_keyNames, name);
+    ArrayPush(this.m_keyActions, action);
+    ArrayPush(this.m_keyArgs, arg);
+    ArrayPush(this.m_keyOff, off);
+  }
+
+  // the frame saw a key press: true when a keycap on this page took it
+  public func PressKey(e: ref<inkPointerEvent>) -> Bool {
+    let k = 0;
+    while k < ArraySize(this.m_keyNames) {
+      if NotEquals(this.m_keyNames[k], n"") && e.IsAction(this.m_keyNames[k]) {
+        if this.m_keyOff[k] {
+          let player = GetPlayer(GetGameInstance());
+          if IsDefined(player) && NotEquals(this.Style().denySound, n"") {
+            GameObject.PlaySound(player, this.Style().denySound);
+          }
+        } else {
+          this.ClickSound();
+          this.Act(this.m_keyActions[k], this.m_keyArgs[k]);
+        }
+        return true;
+      }
+      k += 1;
+    }
+    return false;
+  }
+
   // every text box of this view into an action's page
   public func AddFields(act: ref<TKPage>) -> Void { this.Fields(act); }
 
   private func Draw(i: Int32, r: ref<TKRow>) -> Void {
     let kind = r.kind;
     if kind != TKKind.Card() && kind != TKKind.Ticker() && kind != TKKind.Stat() && kind != TKKind.Tile() && kind != TKKind.Gauge()
-      && kind != TKKind.File() && kind != TKKind.Posting() && kind != TKKind.Run() {
+      && kind != TKKind.File() && kind != TKKind.Posting() && kind != TKKind.Run() && kind != TKKind.Key() && kind != TKKind.Ring() {
       this.m_cards = null;   // the next card or tile starts a new line
     }
     switch kind {
@@ -1043,6 +1085,13 @@ public class TKView extends IScriptable {
       case 39: TKCards.File(this, i, r); break;
       case 40: TKCards.Posting(this, i, r); break;
       case 41: TKCards.Run(this, i, r); break;
+      case 43: TKConsole.Key(this, i, r); break;
+      case 44: TKConsole.Bay(this, i, r); break;
+      case 45: TKConsole.Leds(this, r); break;
+      case 46: TKConsole.Ring(this, r); break;
+      case 47: TKConsole.Compare(this, r); break;
+      case 48: TKConsole.Feed(this, r); break;
+      case 49: TKConsole.Wave(this, r); break;
       default: break;
     }
   }

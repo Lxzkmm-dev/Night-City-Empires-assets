@@ -636,6 +636,10 @@ public class TKPopup extends InGamePopup {
   // the right mouse button goes back to the page before (closing a dialog or
   // a drop-down list first)
   protected cb func OnFramePress(e: ref<inkPointerEvent>) -> Bool {
+    // a keycap's key runs it (never while typing in a text box)
+    if !this.IsTyping() && !e.IsAction(n"click") && this.PressKey(e) {
+      return false;
+    }
     if IsDefined(this.m_view) && RedFunc.MouseButton(2) && !e.IsAction(n"click") && !e.IsAction(n"mouse_left") {
       if !this.m_rightDown {
         if !this.m_view.CloseOverlay() {
@@ -647,6 +651,20 @@ public class TKPopup extends InGamePopup {
       this.m_rightDown = false;   // any other press (Esc included) clears it
     }
     return false;
+  }
+
+  private func PressKey(e: ref<inkPointerEvent>) -> Bool {
+    if IsDefined(this.m_regions) {
+      let i = 0;
+      while i < this.m_regions.Count() {
+        if this.m_regions.View(i).PressKey(e) {
+          return true;
+        }
+        i += 1;
+      }
+      return false;
+    }
+    return IsDefined(this.m_view) && this.m_view.PressKey(e);
   }
 
   // the right mouse button is also bound to "cancel", which closes the popup on

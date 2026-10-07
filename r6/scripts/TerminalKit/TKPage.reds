@@ -54,6 +54,13 @@ public abstract class TKKind {
   public static func Posting() -> Int32 = 40
   public static func Run() -> Int32 = 41
   public static func Region() -> Int32 = 42
+  public static func Key() -> Int32 = 43
+  public static func Bay() -> Int32 = 44
+  public static func Leds() -> Int32 = 45
+  public static func Ring() -> Int32 = 46
+  public static func Compare() -> Int32 = 47
+  public static func Feed() -> Int32 = 48
+  public static func Wave() -> Int32 = 49
 }
 
 public class TKRow extends IScriptable {
@@ -427,6 +434,44 @@ public class TKPage extends IScriptable {
   public func Message(who: String, time: String, text: String, mine: Bool, color: String) -> Void {
     this.Push(TKKind.Message(), text, who, color, time, "", "", 0.0, mine);
   }
+  // ---- console pieces (TKConsole) ----
+  // A keycap button, side by side with the next keys: the player's own key or
+  // pad button for `inputAction` and the label; pressing that key while the
+  // frame is open runs it too. label "DEPLOY", "*DEPLOY" (the primary key) or
+  // "!DEPLOY|IN REPAIR" (can't be used, the short reason under it).
+  public func Key(inputAction: String, label: String, action: String, arg: String) -> Void {
+    this.Push(TKKind.Key(), StrBeforeFirst(label + "|", "|"), StrAfterFirst(label, "|"), "", inputAction, action, arg, 0.0, true);
+  }
+  // A unit card for a rack: head "BAY 01 · MINOTAUR|WARDOG|READY" (id line, name,
+  // stamp), a wireframe thumbnail (an atlas part: white lines on transparent) in
+  // `color`, a 10-cell bar at `fraction`, `selected` framed; clicking runs Act(action, arg)
+  public func Bay(head: String, atlas: String, part: String, fraction: Float, color: String, selected: Bool, action: String, arg: String) -> Void {
+    this.Push(TKKind.Bay(), head, atlas + "|" + part, color, "", action, arg, fraction, selected);
+  }
+  // Status lights after a label: colours "green|amber|red|off", blinks "0|0|1|0"
+  public func Leds(label: String, value: String, colors: String, blinks: String) -> Void {
+    this.Push(TKKind.Leds(), label, value, "", colors, blinks, "", 0.0, true);
+  }
+  // A radial meter tile (side by side like cards): the name, a ring of cells lit
+  // to `fraction` in `color`, the value in the middle (card marks), a line under it
+  public func Ring(name: String, value: String, sub: String, fraction: Float, color: String) -> Void {
+    this.Push(TKKind.Ring(), name + "|" + value + "|" + sub, "", color, "", "", "", fraction, true);
+  }
+  // A value bar at `fraction` with an amber tick at `current` (both 0..1): a part
+  // on sale against the one fitted now
+  public func Compare(label: String, value: String, fraction: Float, current: Float, color: String) -> Void {
+    this.Push(TKKind.Compare(), label, value, color, FloatToString(current), "", "", fraction, true);
+  }
+  // A one-line strip that scrolls right to left for ever (an ops feed), after a small label
+  public func Feed(label: String, text: String, color: String) -> Void {
+    this.Push(TKKind.Feed(), text, label, color, "", "", "", 0.0, true);
+  }
+  // A small line through `series` ("0.4,0.7,0.5" 0..1, oldest first); `live` runs
+  // a sweep along it (an uplink signal)
+  public func Wave(label: String, value: String, series: String, color: String, live: Bool) -> Void {
+    this.Push(TKKind.Wave(), label, value, color, series, "", "", 0.0, live);
+  }
+
   // From Act: ask first. The page redraws, then a dialog asks `text`; `yes`
   // (the button) runs Act(action, arg). A button label starting with "?" does
   // the same by itself ("?SELL ALL" asks "SELL ALL?").

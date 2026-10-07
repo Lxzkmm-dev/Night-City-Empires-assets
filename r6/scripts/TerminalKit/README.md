@@ -77,9 +77,17 @@ A page is a title, a subtitle (hidden when empty), a status message and rows (`T
 - **Buttons**: `Button`, `Item` (text left, a button right), `Buttons` (several).
 - **Controls**: `Input` (a text box), `Search` (a box and its button), `Slider`, `Dropdown`, `Check`, `Choice` (a selectable list entry, for a list beside its detail), `SortHead` and `Pager`; `TKSheet` builds a sortable, paged table for you.
 - **Live**: `Countdown` and `Progress` update every second from game time without redrawing, and can run an action when they finish.
+- **Console pieces** (`TKConsole`):
+  - `Key(inputAction, label, action, arg)` is a keycap that shows the player's own key or pad button for that input action. Pressing that key while the frame is open runs it too. Use `"*LABEL"` for the primary key and `"!LABEL|reason"` when it can't be used.
+  - `Bay(head, atlas, part, fraction, color, selected, action, arg)` is a unit card for a rack: a wireframe thumbnail, an id line, the name, a stamp and a 10-cell bar. The whole card is a button.
+  - `Leds(label, value, colors, blinks)` shows status lights; any light can blink.
+  - `Ring(name, value, sub, fraction, color)` is a radial meter tile.
+  - `Compare(label, value, fraction, current, color)` is a bar with an amber tick at the current value.
+  - `Feed(label, text, color)` is a strip that scrolls.
+  - `Wave(label, value, series, color, live)` is a small line through values, with a sweep running along it when live.
 - **Custom**: `Custom(tag, ...)` is drawn by your provider's `Custom()`, which returns a `TKCustom` the view stops when the page goes (the map is one).
 
-Marks in text: a leading `!` shows red, `*` green (neither is shown), `+` amounts green; on boards `^` bright yellow and `~` grey. Button labels: `!` disables, `?` asks first ("?SELL ALL" shows a dialog). From `Act`, `p.Confirm(question, yes, action, arg)` asks before running something. `p.SetTip(text)` gives the row just added a tooltip on its title.
+Marks in text: a leading `!` shows red, `*` green (neither is shown), `+` amounts green; on boards `^` bright yellow and `~` grey. Button labels: `!` disables, `?` asks first ("?SELL ALL" shows a dialog), `~` must be held ("~REPAIR ALL" fills while held and cancels on release). From `Act`, `p.Confirm(question, yes, action, arg)` asks before running something. `p.SetTip(text)` gives the row just added a tooltip on its title.
 
 Action rows split their buttons once, typed: `row.labels`, `row.actions`, `row.args`. String builders take `"A|B"` labels, `"a|b"` actions and `"x|y"` args (or `"x\ny"` when an arg holds `|`). Controls hand their value on as `arg + ":" + value` (just the value when the row's arg is empty).
 
