@@ -123,6 +123,10 @@ public class TKPage extends IScriptable {
   public let bare: Bool;           // hide the frame around the page (a page that needs the world in view)
   public let wheelReserved: Bool;  // a row on this page uses the mouse wheel itself: the page doesn't scroll
   public let refresh: array<String>; // from Act, in a layout: only these regions redraw (none named: all of them)
+  public let overlayRegion: String;  // from Act, in a layout: a page to slide over a region (Overlay)
+  public let overlayPage: String;
+  public let overlayArg: String;
+  public let overlayEnd: Bool;       // ... or close the one there (EndOverlay)
   public let rows: array<ref<TKRow>>;
   // text boxes on the page (Input rows), handed to Act with every action
   public let fieldKeys: array<String>;
@@ -163,6 +167,20 @@ public class TKPage extends IScriptable {
   // From Act, in a frame with regions: redraw only region `name` (call it once
   // per region); without it every region redraws. Ignored without regions.
   public func Refresh(name: String) -> Void { ArrayPush(this.refresh, name); }
+  // From Act, in a frame with regions: slide `page` over the stage (the first
+  // "fill" region) with its title and a BACK button; right click and Esc close
+  // it before the frame. Actions from it see its page; GoTo there moves it.
+  public func Overlay(page: String, arg: String) -> Void { this.OverlayOn("", page, arg); }
+  public func OverlayOn(region: String, page: String, arg: String) -> Void {
+    this.overlayRegion = region;
+    this.overlayPage = page;
+    this.overlayArg = arg;
+  }
+  // closes the overlay over `region` ("": the one this action came from, or all)
+  public func EndOverlay(region: String) -> Void {
+    this.overlayRegion = region;
+    this.overlayEnd = true;
+  }
   public func GetField(key: String) -> String {
     let i = 0;
     while i < ArraySize(this.fieldKeys) {

@@ -534,7 +534,7 @@ public class TKView extends IScriptable {
   // runs an action on the current page and redraws (the next page if it named one)
   public func Act(action: String, arg: String) -> Void {
     if IsDefined(this.m_host) {
-      this.m_host.Act(action, arg);
+      this.m_host.ActFrom(this, action, arg);
       return;
     }
     let act: ref<TKPage> = new TKPage();
@@ -969,6 +969,23 @@ public class TKView extends IScriptable {
     this.m_width = width;
     this.ScrollTo(keep ? this.m_scrollY : 0.0);
     this.StartLive();
+  }
+
+  // a page slid over this region: it comes in from the right
+  public func SlideIn() -> Void {
+    if !IsDefined(this.m_scroll) {
+      return;
+    }
+    let def: ref<inkAnimDef> = new inkAnimDef();
+    let move: ref<inkAnimTranslation> = new inkAnimTranslation();
+    move.SetStartTranslation(Vector2(MinF(160.0, this.m_width * 0.2), 0.0));
+    move.SetEndTranslation(Vector2(0.0, 0.0));
+    move.SetDuration(0.22);
+    move.SetType(inkanimInterpolationType.Quadratic);
+    move.SetMode(inkanimInterpolationMode.EasyOut);
+    def.AddInterpolator(move);
+    TKPopup.Fade(def, 0.0, 1.0, 0.18, 0.0);
+    this.m_scroll.PlayAnimation(def);
   }
 
   // every text box of this view into an action's page

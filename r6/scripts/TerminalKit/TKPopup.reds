@@ -657,6 +657,12 @@ public class TKPopup extends InGamePopup {
       evt.Handle();
       return true;
     }
+    // Esc closes a page slid over a region before the frame
+    if IsDefined(this.m_regions) && evt.IsAction(this.m_closeAction) && this.m_regions.HasOverlay() {
+      this.m_regions.EndOverlay("");
+      evt.Handle();
+      return true;
+    }
     return super.OnGlobalReleaseInput(evt);
   }
 

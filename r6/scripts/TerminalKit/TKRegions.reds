@@ -27,6 +27,10 @@ public class TKRegions extends IScriptable {
   private let m_arg: String;
   private let m_history: array<String>;
   private let m_noPush: Bool;
+  private let m_sides: array<String>;
+  // a page slid over a region (Overlay): its page and arg, "" for none
+  private let m_overPages: array<String>;
+  private let m_overArgs: array<String>;
 
   public func Count() -> Int32 = ArraySize(this.m_views)
   public func View(i: Int32) -> ref<TKView> = i >= 0 && i < ArraySize(this.m_views) ? this.m_views[i] : null
@@ -115,6 +119,9 @@ public class TKRegions extends IScriptable {
       this.Pane(parent, v, name, rects[i], fixed);
       ArrayPush(this.m_names, name);
       ArrayPush(this.m_views, v);
+      ArrayPush(this.m_sides, TKStr.Part(specs[i], "|", 1));
+      ArrayPush(this.m_overPages, "");
+      ArrayPush(this.m_overArgs, "");
       i += 1;
     }
     let overlay: ref<inkCanvas> = new inkCanvas();
@@ -184,11 +191,15 @@ public class TKRegions extends IScriptable {
       }
     }
     this.m_noPush = false;
+    if !same {
+      this.EndOverlays();   // another page: what was slid over it goes
+    }
     let none: array<String>;
     this.Draw(page, arg, message, same, none);
   }
 
-  // asks the provider for the page and draws the regions in `only` (all when empty)
+  // asks the provider for the page and draws the regions in `only` (all when
+  // empty); a region with a page slid over it draws that page instead
   private func Draw(page: String, arg: String, message: String, keep: Bool, only: array<String>) -> Void {
     this.m_page = page;
     this.m_arg = arg;
@@ -200,12 +211,104 @@ public class TKRegions extends IScriptable {
     let i = 0;
     while i < ArraySize(this.m_views) {
       if ArraySize(only) == 0 || ArrayContains(only, this.m_names[i]) {
-        this.m_views[i].Present(parts[i], page, arg, keep);
+        if StrLen(this.m_overPages[i]) > 0 {
+          this.m_views[i].Present(this.OverlayPage(i), this.m_overPages[i], this.m_overArgs[i], keep);
+        } else {
+          this.m_views[i].Present(parts[i], page, arg, keep);
+        }
       }
       i += 1;
     }
     if IsDefined(this.m_message) {
       this.m_message.SetText(TKScale.T(StrLen(data.message) > 0 ? data.message : message));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Overlays: a page slid over one region (a map, a catalogue over the stage),
+  // with its title and a BACK button on top. Right click and Esc close it before
+  // the frame; actions from it see its page in p.page.
+  // ---------------------------------------------------------------------------
+  public func HasOverlay() -> Bool {
+    for p in this.m_overPages {
+      if StrLen(p) > 0 {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // the region an Overlay() without a region goes over: the first "fill" one
+  private func DefaultOverlay() -> Int32 {
+    let i = 0;
+    while i < ArraySize(this.m_sides) {
+      if Equals(this.m_sides[i], "fill") {
+        return i;
+      }
+      i += 1;
+    }
+    return 0;
+  }
+
+  // the overlay page of region i: its title and BACK, then its rows
+  private func OverlayPage(i: Int32) -> ref<TKPage> {
+    let data = new TKPage();
+    data.content = this.m_provider;
+    data.page = this.m_overPages[i];
+    data.Request(this.m_overPages[i], this.m_overArgs[i]);
+    let p = new TKPage();
+    p.content = this.m_provider;
+    p.page = data.page;
+    p.answered = true;
+    p.theme = data.theme;
+    p.wheelReserved = data.wheelReserved;
+    p.Actions(TKKind.Item(), StrLen(data.title) > 0 ? data.title : StrUpper(data.page), data.subtitle, "", ["BACK"], ["tk_overlay_back"], [this.m_names[i]], 0.0, true);
+    for r in data.rows {
+      if r.kind != TKKind.Region() {
+        ArrayPush(p.rows, r);
+      }
+    }
+    return p;
+  }
+
+  // slides `page` over region `region` ("" = the first fill region); redraws it
+  public func Overlay(region: String, page: String, arg: String) -> Void {
+    let i = StrLen(region) > 0 ? this.IndexOf(region) : this.DefaultOverlay();
+    if i < 0 {
+      return;
+    }
+    let opening = StrLen(this.m_overPages[i]) == 0;
+    this.m_overPages[i] = page;
+    this.m_overArgs[i] = arg;
+    this.m_views[i].Present(this.OverlayPage(i), page, arg, false);
+    if opening {
+      this.m_views[i].SlideIn();
+    }
+  }
+
+  // closes the overlay over region `region` ("" = every one): true when one was open
+  public func EndOverlay(region: String) -> Bool {
+    let had = false;
+    let i = 0;
+    while i < ArraySize(this.m_overPages) {
+      if StrLen(this.m_overPages[i]) > 0 && (StrLen(region) == 0 || Equals(this.m_names[i], region)) {
+        this.m_overPages[i] = "";
+        this.m_overArgs[i] = "";
+        had = true;
+        let only = [this.m_names[i]];
+        this.Draw(this.m_page, this.m_arg, "", true, only);
+      }
+      i += 1;
+    }
+    return had;
+  }
+
+  private func EndOverlays() -> Void {
+    let i = 0;
+    while i < ArraySize(this.m_overPages) {
+      this.m_overPages[i] = "";
+      this.m_overArgs[i] = "";
+      i += 1;
     }
   }
 
@@ -240,10 +343,19 @@ public class TKRegions extends IScriptable {
     return parts;
   }
 
-  public func Act(action: String, arg: String) -> Void {
+  public func Act(action: String, arg: String) -> Void { this.ActFrom(null, action, arg); }
+
+  // an action from region view `from` (null: the page's own)
+  public func ActFrom(from: ref<TKView>, action: String, arg: String) -> Void {
+    if Equals(action, "tk_overlay_back") {
+      this.EndOverlay(arg);
+      return;
+    }
+    let at = IsDefined(from) ? this.IndexOf(from.Region()) : -1;
+    let over = at >= 0 && StrLen(this.m_overPages[at]) > 0;
     let act: ref<TKPage> = new TKPage();
     act.content = this.m_provider;
-    act.page = this.m_page;
+    act.page = over ? this.m_overPages[at] : this.m_page;
     for v in this.m_views {
       v.AddFields(act);
     }
@@ -254,18 +366,44 @@ public class TKRegions extends IScriptable {
     if act.skipRedraw {
       return;
     }
-    let moved = StrLen(act.nextPage) > 0 && (NotEquals(act.nextPage, this.m_page) || NotEquals(act.nextArg, this.m_arg));
-    if moved {
-      this.Show(act.nextPage, act.nextArg, act.message);
+    let only = act.refresh;
+    // the overlays the action opened, moved or closed
+    if act.overlayEnd {
+      let target = StrLen(act.overlayRegion) > 0 ? act.overlayRegion : (over ? this.m_names[at] : "");
+      this.EndOverlay(target);
+    }
+    if StrLen(act.overlayPage) > 0 {
+      this.Overlay(act.overlayRegion, act.overlayPage, act.overlayArg);
+    }
+    if over && StrLen(act.nextPage) > 0 && !act.overlayEnd {
+      // GoTo from inside an overlay moves the overlay
+      this.Overlay(this.m_names[at], act.nextPage, act.nextArg);
     } else {
-      this.Draw(this.m_page, this.m_arg, act.message, true, act.refresh);
+      let moved = StrLen(act.nextPage) > 0 && (NotEquals(act.nextPage, this.m_page) || NotEquals(act.nextArg, this.m_arg));
+      if moved {
+        this.Show(act.nextPage, act.nextArg, act.message);
+      } else {
+        // a named refresh redraws those regions; with an overlay change and no
+        // names, the rest stays as it is
+        if ArraySize(only) > 0 || (!act.overlayEnd && StrLen(act.overlayPage) == 0) {
+          this.Draw(this.m_page, this.m_arg, act.message, true, only);
+        } else {
+          if IsDefined(this.m_message) {
+            this.m_message.SetText(TKScale.T(act.message));
+          }
+        }
+      }
     }
     if StrLen(act.confirmAction) > 0 && ArraySize(this.m_views) > 0 {
-      this.m_views[0].Dialog(act.confirmText, StrLen(act.confirmYes) > 0 ? act.confirmYes : "CONFIRM", act.confirmAction, act.confirmArg);
+      (IsDefined(from) ? from : this.m_views[0]).Dialog(act.confirmText, StrLen(act.confirmYes) > 0 ? act.confirmYes : "CONFIRM", act.confirmAction, act.confirmArg);
     }
   }
 
+  // right click: an overlay closes first, then the page before
   public func Back() -> Bool {
+    if this.EndOverlay("") {
+      return true;
+    }
     let n = ArraySize(this.m_history);
     if n == 0 {
       return false;
