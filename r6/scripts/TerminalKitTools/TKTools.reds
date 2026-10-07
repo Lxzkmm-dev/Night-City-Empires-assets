@@ -209,7 +209,8 @@ public abstract class TKTools {
     p.Tile("INSPECT", ArraySize(sys.inspect) > 0 ? "LAST: " + StrUpper(StrAfterLast(sys.inspectRecord, ".")) : "LOOK AT IT", "Record, look, faction, attitude", "yellow", "OPEN", "tk_go", "tk_inspect", true);
     p.Tile("SPAWN", IntToString(ArraySize(sys.spawned)) + " OUT", "Any NPC or vehicle record ahead of V", "orange", "OPEN", "tk_go", "tk_spawn", true);
     p.Tile("TWEAKDB", RedFunc.TweakNamesReady() ? IntToString(RedFunc.TweakNamesCount()) + " NAMES" : "!NAMES LOADING", "Search records and their flats", "purple", "OPEN", "tk_go", "tk_tweak", true);
-    p.Tile("LOG", IntToString(ArraySize(TKLog.Lines())) + " LINES", "What mods wrote with TKLog.Add", "blue", "OPEN", "tk_go", "tk_log", true);
+    let logLines = TKLog.Lines();
+    p.Tile("LOG", IntToString(ArraySize(logLines)) + " LINES", "What mods wrote with TKLog.Add", "blue", "OPEN", "tk_go", "tk_log", true);
   }
 
   // ---------------------------------------------------------------------------

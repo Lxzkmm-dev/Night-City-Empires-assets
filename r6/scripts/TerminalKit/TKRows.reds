@@ -287,7 +287,9 @@ public abstract class TKRows {
     let colW = v.RowWidth() / 2.0 - 20.0;
     TKRows.PairColumn(v, strip, colW, r.text, r.value);
     TKRows.PairColumn(v, strip, colW, r.label, r.action);
-    v.Grew(Cast<Float>(Max(ArraySize(StrSplit(r.text, "|")), ArraySize(StrSplit(r.label, "|")))) * Cast<Float>(TKScale.I("pair", 30)) * 1.4 + 30.0);
+    let left = StrSplit(r.text, "|");
+    let right = StrSplit(r.label, "|");
+    v.Grew(Cast<Float>(Max(ArraySize(left), ArraySize(right))) * Cast<Float>(TKScale.I("pair", 30)) * 1.4 + 30.0);
   }
 
   private static func PairColumn(v: ref<TKView>, parent: ref<inkCompoundWidget>, width: Float, labels: String, values: String) -> Void {

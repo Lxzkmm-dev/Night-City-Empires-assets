@@ -284,8 +284,10 @@ public class TKPopup extends InGamePopup {
     ArrayPush(this.m_hideable, rule);
 
     // body: the regions a layout lists, or tabs on the left and the page on the right
-    if ArraySize(this.Layout()) > 0 {
-      this.BuildRegions(frame);
+    // (the call into a local first: ArraySize straight on a call's result reads 0 in game)
+    let specs = this.Layout();
+    if ArraySize(specs) > 0 {
+      this.BuildRegions(frame, specs);
     } else {
       this.BuildPage(frame);
     }
@@ -344,7 +346,7 @@ public class TKPopup extends InGamePopup {
   }
 
   // the regions of Layout() under the top rule, the page's message bottom right
-  private func BuildRegions(frame: ref<inkCompoundWidget>) -> Void {
+  private func BuildRegions(frame: ref<inkCompoundWidget>, specs: array<String>) -> Void {
     let message = TKInk.Line(frame, "", TKScale.I("message", 30), n"Medium", n"MainColors.Blue", 0.0);
     message.SetAnchor(inkEAnchor.BottomRight);
     message.SetAnchorPoint(Vector2(1.0, 1.0));
@@ -353,7 +355,7 @@ public class TKPopup extends InGamePopup {
     this.m_regions = new TKRegions();
     let top = TKScale.F("layout.top", 180.0);
     let foot = TKScale.F("layout.foot", 110.0);
-    this.m_regions.Build(frame, 70.0, top, this.FrameWidth() - 140.0, this.FrameHeight() - top - foot, this.Layout(),
+    this.m_regions.Build(frame, 70.0, top, this.FrameWidth() - 140.0, this.FrameHeight() - top - foot, specs,
       this.m_view, this.m_view.FrameOf(), this.Content(), this.Style(), message);
   }
 
