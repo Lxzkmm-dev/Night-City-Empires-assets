@@ -99,6 +99,7 @@ public class TKView extends IScriptable {
   private let m_focusNames: array<String>;
   private let m_focusOff: array<Bool>;
   private let m_focus: Int32;                 // -1 = none (set when the view is bound)
+  private let m_focusOpacity: Float;          // the focused widget's own opacity, given back when it loses focus
 
   // ---------------------------------------------------------------------------
   // Set-up
@@ -201,10 +202,7 @@ public class TKView extends IScriptable {
 
   protected cb func OnDeniedPress(e: ref<inkPointerEvent>) -> Bool {
     if e.IsAction(n"click") {
-      let player = GetPlayer(GetGameInstance());
-      if IsDefined(player) {
-        GameObject.PlaySound(player, this.Style().denySound);
-      }
+      this.DenySound();
     }
     return false;
   }
@@ -455,10 +453,8 @@ public class TKView extends IScriptable {
       return false;
     }
     if this.m_hitOff[i] {
-      let player = GetPlayer(GetGameInstance());
-      if IsDefined(player) && NotEquals(this.Style().denySound, n"") {
-        GameObject.PlaySound(player, this.Style().denySound);
-      }
+      this.DenySound();
+
       return true;
     }
     this.ClickSound();
@@ -869,27 +865,14 @@ public class TKView extends IScriptable {
   // ---------------------------------------------------------------------------
   // Build the page and draw it
   // ---------------------------------------------------------------------------
-  public func Show(page: String, arg: String, message: String) -> Void {
-    if IsDefined(this.m_host) {
-      this.m_host.Show(page, arg, message);
-      return;
-    }
-    if !IsDefined(this.m_content) {
-      return;
-    }
-    let same = Equals(page, this.m_page) && Equals(arg, this.m_arg);
-    if !same && StrLen(this.m_page) > 0 && !this.m_noPush {
-      ArrayPush(this.m_history, this.m_page + "~" + this.m_arg);
-      while ArraySize(this.m_history) > 30 {
-        ArrayErase(this.m_history, 0);
-      }
-    }
-    this.m_noPush = false;
+  // everything the page drawn last left behind: its widgets, live rows, tips,
+  // hit areas, keycaps and focus list (the overlay of this view only)
+  private func Clear(page: String, arg: String) -> Void {
     this.m_page = page;
     this.m_arg = arg;
     this.StopCustom();
     this.StopLive();
-    this.CloseOverlay();
+    this.CloseOwnOverlay();
     this.HideTip();
     ArrayClear(this.m_tips);
     ArrayClear(this.m_hitActions);
@@ -916,6 +899,32 @@ public class TKView extends IScriptable {
     this.m_cards = null;
     this.m_cardCount = 0;
     this.m_split = null;
+  }
+
+  private func DenySound() -> Void {
+    let player = GetPlayer(GetGameInstance());
+    if IsDefined(player) && NotEquals(this.Style().denySound, n"") {
+      GameObject.PlaySound(player, this.Style().denySound);
+    }
+  }
+  public func Show(page: String, arg: String, message: String) -> Void {
+    if IsDefined(this.m_host) {
+      this.m_host.Show(page, arg, message);
+      return;
+    }
+    if !IsDefined(this.m_content) {
+      return;
+    }
+    let same = Equals(page, this.m_page) && Equals(arg, this.m_arg);
+    if !same && StrLen(this.m_page) > 0 && !this.m_noPush {
+      ArrayPush(this.m_history, this.m_page + "~" + this.m_arg);
+      while ArraySize(this.m_history) > 30 {
+        ArrayErase(this.m_history, 0);
+      }
+    }
+    this.m_noPush = false;
+    this.Clear(page, arg);
+
     this.m_data = new TKPage();
     this.m_data.content = this.m_provider;
     this.m_data.page = page;
@@ -974,37 +983,8 @@ public class TKView extends IScriptable {
     if !IsDefined(this.m_content) {
       return;
     }
-    this.m_page = page;
-    this.m_arg = arg;
-    this.StopCustom();
-    this.StopLive();
-    this.CloseOwnOverlay();
-    this.HideTip();
-    ArrayClear(this.m_tips);
-    ArrayClear(this.m_hitActions);
-    ArrayClear(this.m_hitArgs);
-    ArrayClear(this.m_hitTips);
-    ArrayClear(this.m_hitOff);
-    this.grown = 0.0;
-    this.m_content.RemoveAllChildren();
-    ArrayClear(this.m_buttons);
-    ArrayClear(this.m_sliders);
-    ArrayClear(this.m_inputs);
-    ArrayClear(this.m_inputKeys);
-    this.m_drag = -1;
-    this.HoldStop();
-    ArrayClear(this.m_keyNames);
-    ArrayClear(this.m_keyActions);
-    ArrayClear(this.m_keyArgs);
-    ArrayClear(this.m_keyOff);
-    ArrayClear(this.m_focusW);
-    ArrayClear(this.m_focusNames);
-    ArrayClear(this.m_focusOff);
-    this.linkRows = 0;
-    this.tableLine = 0;
-    this.m_cards = null;
-    this.m_cardCount = 0;
-    this.m_split = null;
+    this.Clear(page, arg);
+
     this.m_data = data;
     if IsDefined(this.m_scroll) {
       this.m_scroll.SetUseInternalMask(!data.wheelReserved);
@@ -1055,10 +1035,8 @@ public class TKView extends IScriptable {
     while k < ArraySize(this.m_keyNames) {
       if NotEquals(this.m_keyNames[k], n"") && e.IsAction(this.m_keyNames[k]) {
         if this.m_keyOff[k] {
-          let player = GetPlayer(GetGameInstance());
-          if IsDefined(player) && NotEquals(this.Style().denySound, n"") {
-            GameObject.PlaySound(player, this.Style().denySound);
-          }
+          this.DenySound();
+
         } else {
           this.ClickSound();
           this.Act(this.m_keyActions[k], this.m_keyArgs[k]);
@@ -1091,13 +1069,14 @@ public class TKView extends IScriptable {
   public func Focus(i: Int32) -> Void {
     if this.m_focus >= 0 && this.m_focus < ArraySize(this.m_focusW) && IsDefined(this.m_focusW[this.m_focus]) {
       this.m_focusW[this.m_focus].SetScale(Vector2(1.0, 1.0));
-      this.m_focusW[this.m_focus].SetOpacity(this.m_focusOff[this.m_focus] ? 0.45 : 1.0);
+      this.m_focusW[this.m_focus].SetOpacity(this.m_focusOpacity);
     }
     this.m_focus = i >= 0 && i < ArraySize(this.m_focusW) ? i : -1;
     if this.m_focus >= 0 && IsDefined(this.m_focusW[this.m_focus]) {
       let w = this.m_focusW[this.m_focus];
       w.SetRenderTransformPivot(Vector2(0.5, 0.5));
       w.SetScale(Vector2(1.05, 1.05));
+      this.m_focusOpacity = w.GetOpacity();
       w.SetOpacity(1.0);
       this.HideTip();
     }
@@ -1129,10 +1108,8 @@ public class TKView extends IScriptable {
     }
     let name = this.m_focusNames[this.m_focus];
     if this.m_focusOff[this.m_focus] {
-      let player = GetPlayer(GetGameInstance());
-      if IsDefined(player) && NotEquals(this.Style().denySound, n"") {
-        GameObject.PlaySound(player, this.Style().denySound);
-      }
+      this.DenySound();
+
       return true;
     }
     if StrBeginsWith(name, "act_") {
