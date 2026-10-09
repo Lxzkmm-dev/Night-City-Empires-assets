@@ -319,7 +319,17 @@ public class TKRegions extends IScriptable {
     p.answered = true;
     p.theme = data.theme;
     p.wheelReserved = data.wheelReserved;
-    p.Actions(TKKind.Item(), StrLen(data.title) > 0 ? data.title : StrUpper(data.page), data.subtitle, "", ["BACK"], ["tk_overlay_back"], [this.m_names[i]], 0.0, true);
+    if !data.noOverlayBack {
+      p.Actions(TKKind.Item(), StrLen(data.title) > 0 ? data.title : StrUpper(data.page), data.subtitle, "", ["BACK"], ["tk_overlay_back"], [this.m_names[i]], 0.0, true);
+    } else {
+      // the page draws its own way back: only its title (if it set one), no button
+      if StrLen(data.title) > 0 {
+        p.Heading(data.title);
+      }
+      if StrLen(data.subtitle) > 0 {
+        p.Note(data.subtitle);
+      }
+    }
     for r in data.rows {
       if r.kind != TKKind.Region() {
         ArrayPush(p.rows, r);

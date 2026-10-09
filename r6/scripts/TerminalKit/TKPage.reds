@@ -134,6 +134,7 @@ public class TKPage extends IScriptable {
   public let overlayPage: String;
   public let overlayArg: String;
   public let overlayEnd: Bool;       // ... or close the one there (EndOverlay)
+  public let noOverlayBack: Bool;    // shown as an overlay: no header BACK (SetOverlayBack)
   public let rows: array<ref<TKRow>>;
   // text boxes on the page (Input rows), handed to Act with every action
   public let fieldKeys: array<String>;
@@ -183,6 +184,10 @@ public class TKPage extends IScriptable {
     this.overlayPage = page;
     this.overlayArg = arg;
   }
+  // In Request, for a page shown as an overlay: false drops the kit's header
+  // (title and BACK button) for a heading with the page's title, when the page
+  // draws its own way back. Right click and Esc still close the overlay.
+  public func SetOverlayBack(on: Bool) -> Void { this.noOverlayBack = !on; }
   // closes the overlay over `region` ("": the one this action came from, or all)
   public func EndOverlay(region: String) -> Void {
     this.overlayRegion = region;
